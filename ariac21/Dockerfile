@@ -96,6 +96,10 @@ RUN git clone https://github.com/usnistgov/ARIAC.git \
 WORKDIR /home/developer/catkin_ws/src
 RUN git clone https://github.com/ros-industrial/universal_robot.git
 
+# Download ros_controllers
+WORKDIR /home/developer/catkin_ws/src
+RUN git clone https://github.com/ros-controls/ros_controllers.git
+
 # Install GEAR Dependencies
 WORKDIR /home/developer/catkin_ws
 RUN rosdep install --from-path ./src --ignore-packages-from-source -y
