@@ -97,8 +97,10 @@ WORKDIR /home/developer/catkin_ws/src
 RUN git clone https://github.com/ros-industrial/universal_robot.git
 
 # Download ros_controllers
+#WORKDIR /home/developer/catkin_ws/src
+#RUN git clone https://github.com/ros-controls/ros_controllers.git
 WORKDIR /home/developer/catkin_ws/src
-RUN git clone https://github.com/ros-controls/ros_controllers.git
+RUN git clone https://github.com/ros-visualization/rqt.git
 
 # Install GEAR Dependencies
 WORKDIR /home/developer/catkin_ws
