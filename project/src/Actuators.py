@@ -27,18 +27,18 @@ class Actuators():
 
         #self.tf = TransformListener()
 
-        #moveGroupName_gantry = 'gantry'
+        moveGroupName_gantry = 'gantry'
         moveGroupName_kitting = 'kitting'
-        ns = 'ariac/kitting'
-        robot_description = ns + '/robot_description'
+        ns_kitting = 'ariac/kitting'
+        robot_description_kitting = ns_kitting + '/robot_description'
 
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.init_node('move_group_node', anonymous=True)
 
-        robot = moveit_commander.RobotCommander()
+        kitting_robot = moveit_commander.RobotCommander(robot_description_kitting)
         scene = moveit_commander.PlanningSceneInterface()
 
-        group = moveit_commander.MoveGroupCommander(moveGroupName_kitting, robot_description=robot_description, ns=ns)
+        group = moveit_commander.MoveGroupCommander(moveGroupName_kitting, robot_description=robot_description_kitting, ns=ns_kitting)
         group.allow_replanning(True)
         group.allow_looking(True)
 
@@ -47,6 +47,7 @@ class Actuators():
         eef_link = group.get_end_effector_link()
         group_names = robot.get_group_names()
         
+
         self.robot = robot
         self.gantry_joint_state = JointState()
         self.kitting_joint_state = JointState()
@@ -160,7 +161,7 @@ class Actuators():
         #   - temp_joint_state: list 6x1
         # OUTPUT:
         #   - list 7x1
-            
+        print("usao u inverz")
         targetPose = PoseStamped()
         targetPose.header.stamp = rospy.Time.now()
         targetPose.pose.position.x = target[0]
@@ -177,7 +178,7 @@ class Actuators():
 
         service_request = PositionIKRequest()
         service_request.group_name = "kitting_arm"
-        #service_request.ik_link_name = "vacuum_gripper_link"
+        service_request.ik_link_name = "vacuum_gripper_link"
         service_request.pose_stamped = targetPose
         service_request.robot_state = robotTemp
         service_request.timeout.secs = 1
@@ -186,16 +187,17 @@ class Actuators():
         compute_ik = rospy.ServiceProxy('compute_ik', GetPositionIK)
 
         resp = compute_ik(service_request)
-
+        rospy.loginfo(resp)
+        print("2f")
         return list(resp.solution.joint_state.position)
 
     """def direct_kinematics_gantry(self, gantry_joint_state):"""
 
     def actuators_run(self):
         rospy.sleep(1.0)
-
+        print("123")
         rospy.loginfo("FK za () = ", self.direct_kinematics_kitting_arm([1.7406034204577985, -1.512444221586856e-06, -1.2488649978462485, 0.00021580356888506458, -4.7316100815208983e-07, -2.0875959075821413, -1.5800032881696922, 5.921660003238571e-06]))
-
+        print("345")
         rospy.loginfo("IK za (0.6, 0.3, 0.4) = ", self.inverse_kinematics_kitting_arm([0.6, 0.3, 0.4], [1.9161646445517473, -0.009191674039686525, -1.0474143013112904, 0.05058105271385838, 5.638986859679562e-07, -2.1389875094127566, -1.5802695387377028, 0.0008106420737750142]))
 
 if __name__ == '__main__':
