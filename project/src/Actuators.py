@@ -26,9 +26,11 @@ class Actuators():
     def __init__(self):  #robot
 
         #self.tf = TransformListener()
+        
+        print("pocetak inita")
 
         moveGroupName_gantry = 'gantry'
-        moveGroupName_kitting = 'kitting'
+        moveGroupName_kitting = 'kitting_arm'
         ns_kitting = 'ariac/kitting'
         robot_description_kitting = ns_kitting + '/robot_description'
 
@@ -36,19 +38,20 @@ class Actuators():
         rospy.init_node('move_group_node', anonymous=True)
 
         kitting_robot = moveit_commander.RobotCommander(robot_description_kitting)
-        scene = moveit_commander.PlanningSceneInterface()
+        scene = moveit_commander.PlanningSceneInterface("ariac/kitting")
 
         group = moveit_commander.MoveGroupCommander(moveGroupName_kitting, robot_description=robot_description_kitting, ns=ns_kitting)
         group.allow_replanning(True)
         group.allow_looking(True)
 
-
+        #self.robot = kitting_robot
         planning_frame = group.get_planning_frame()
         eef_link = group.get_end_effector_link()
-        group_names = robot.get_group_names()
+        #group_names = robot.get_group_names()
+        #print("group_names")
         
 
-        self.robot = robot
+        
         self.gantry_joint_state = JointState()
         self.kitting_joint_state = JointState()
         self.robot_health = RobotHealth()
@@ -74,6 +77,8 @@ class Actuators():
         self.gantry_arm_control = rospy.Publisher('/ariac/gantry/gantry_arm_controller/command', JointTrajectory, queue_size=10)
         self.gantry_torso_control = rospy.Publisher('/ariac/gantry/gantry_torso_controller/command', JointTrajectory, queue_size=10)
         self.kitting_arm_control = rospy.Publisher('/ariac/kitting/kitting_arm_controller/command', JointTrajectory, queue_size=10)
+        
+        print("kraj init")
 
 
     ### CALLBACKS ###
@@ -168,6 +173,7 @@ class Actuators():
         targetPose.pose.position.y = target[1]
         targetPose.pose.position.z = target[2]
         targetPose.pose.orientation.w = 1
+        print(targetPose)
 
         robotTemp = RobotState()
         robotTemp.joint_state.name = ['elbow_joint', 'linear_arm_actuator_joint', 
@@ -175,34 +181,48 @@ class Actuators():
                                       'vacuum_gripper_joint', 'wrist_1_joint', 
                                       'wrist_2_joint', 'wrist_3_joint']
         robotTemp.joint_state.position = temp_joint_state
+        print(robotTemp)
 
         service_request = PositionIKRequest()
         service_request.group_name = "kitting_arm"
-        service_request.ik_link_name = "vacuum_gripper_link"
+        service_request.ik_link_names = ['elbow_joint', 'linear_arm_actuator_joint', 
+                                         'shoulder_lift_joint', 'shoulder_pan_joint', 
+                                         'vacuum_gripper_joint', 'wrist_1_joint', 
+                                         'wrist_2_joint', 'wrist_3_joint']
+        #service_request.ik_link_name = "vacuum_gripper_link"
         service_request.pose_stamped = targetPose
         service_request.robot_state = robotTemp
         service_request.timeout.secs = 1
 
-        rospy.wait_for_service('compute_ik')
-        compute_ik = rospy.ServiceProxy('compute_ik', GetPositionIK)
+        print(service_request)
 
-        resp = compute_ik(service_request)
-        rospy.loginfo(resp)
-        print("2f")
+        rospy.wait_for_service('/ariac/kitting/compute_ik')
+        compute_ik = rospy.ServiceProxy('/ariac/kitting/compute_ik', GetPositionIK)
+        
+        try:
+            resp = compute_ik(service_request)
+            rospy.loginfo(resp)
+            print("gotov inverz")
+        except rospy.ServiceException as exc:
+            print(exc)
+
         return list(resp.solution.joint_state.position)
 
     """def direct_kinematics_gantry(self, gantry_joint_state):"""
 
     def actuators_run(self):
         rospy.sleep(1.0)
-        print("123")
-        rospy.loginfo("FK za () = ", self.direct_kinematics_kitting_arm([1.7406034204577985, -1.512444221586856e-06, -1.2488649978462485, 0.00021580356888506458, -4.7316100815208983e-07, -2.0875959075821413, -1.5800032881696922, 5.921660003238571e-06]))
-        print("345")
-        rospy.loginfo("IK za (0.6, 0.3, 0.4) = ", self.inverse_kinematics_kitting_arm([0.6, 0.3, 0.4], [1.9161646445517473, -0.009191674039686525, -1.0474143013112904, 0.05058105271385838, 5.638986859679562e-07, -2.1389875094127566, -1.5802695387377028, 0.0008106420737750142]))
+        rospy.loginfo("123")
+        #rospy.loginfo("FK za () = ", self.direct_kinematics_kitting_arm([1.7406034204577985, -1.512444221586856e-06, -1.2488649978462485, 0.00021580356888506458, -4.7316100815208983e-07, -2.0875959075821413, -1.5800032881696922, 5.921660003238571e-06]))
+        print("IK za (-1.9, 2.963, 1) = ", self.inverse_kinematics_kitting_arm([-1.9, 2.963994, 1], [1.9161646445517473, -0.009191674039686525, -1.0474143013112904, 0.05058105271385838, 5.638986859679562e-07, -2.1389875094127566, -1.5802695387377028, 0.0008106420737750142]))
+        print("kraj run-a")
 
 if __name__ == '__main__':
     #rospy.init_node('ActuatorsTest')
-    node = Actuators()
-    node.actuators_run()
+    try:
+        node = Actuators()
+        node.actuators_run()
+    except Exception as e:
+        print(e)
 
 
