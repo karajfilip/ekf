@@ -15,7 +15,8 @@ from std_msgs.msg import Header
 class Sensors_functions():
 
     def __init__(self):
-        rospy.init_node('sensors_functions', anonymous=True)
+        self.p=0
+        #rospy.init_node('sensors_functions', anonymous=True)
 
     def tf_transform(self, frame):
         '''

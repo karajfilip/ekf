@@ -35,7 +35,7 @@ class Actuators():
         robot_description_kitting = ns_kitting + '/robot_description'
 
         moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node('move_group_node', anonymous=True)
+        #rospy.init_node('move_group_node', anonymous=True)
 
         kitting_robot = moveit_commander.RobotCommander(robot_description_kitting)
         scene = moveit_commander.PlanningSceneInterface("ariac/kitting")
@@ -47,6 +47,8 @@ class Actuators():
         #self.robot = kitting_robot
         planning_frame = group.get_planning_frame()
         eef_link = group.get_end_effector_link()
+        print("EEF")
+        print(eef_link)
         #group_names = robot.get_group_names()
         #print("group_names")
         
@@ -59,7 +61,7 @@ class Actuators():
         self.gantry_arm_state = JointTrajectoryControllerState()
         self.kitting_arm_state = JointTrajectoryControllerState()
         self.conveyor_belt_state = ConveyorBeltState()
-        self.gripper_type = String()
+        #self.gripper_type = String()
 
 
         # Subscribers
@@ -70,7 +72,7 @@ class Actuators():
         rospy.Subscriber('/ariac/gantry/gantry_arm_controller/state', JointTrajectoryControllerState, self.gantry_arm_state_callback)
         rospy.Subscriber('/ariac/kitting/kitting_arm_controller/state', JointTrajectoryControllerState, self.kitting_arm_state_callback)
         rospy.Subscriber('/ariac/conveyor/state', ConveyorBeltState, self.conveyor_belt_state_callback)
-        rospy.Subscriber('/ariac/gantry/arm/gripper/type', String, self.gripper_type_callback)
+        #rospy.Subscriber('/ariac/gantry/arm/gripper/type', String, self.gripper_type_callback)
 
 
         # Publishers
@@ -100,8 +102,8 @@ class Actuators():
     def kitting_arm_state_callback(self, msg):
         self.kitting_arm_state = msg
 
-    def gripper_type_callback(self, msg):
-        self.gripper_type = msg
+    #def gripper_type_callback(self, msg):
+     #   self.gripper_type = msg
 
     def conveyor_belt_state_callback(self, msg):
         # power -> power of belt
@@ -110,20 +112,64 @@ class Actuators():
 
     ### GRIPPER ###
 
-    #def activate_gripper(self):
-    #    rospy.wait_for_service('/ariac/' + self.robot + '/arm/gripper/control')
-    #    rospy.ServiceProxy('/ariac/' + self.robot + '/arm/gripper/control', VacuumGripperControl)(True)
+    def activate_kitting_gripper(self):
+        rospy.wait_for_service('/ariac/kitting/arm/gripper/control')
+        act_gripp = rospy.ServiceProxy('/ariac/kitting/arm/gripper/control', VacuumGripperControl)(True)
 
-    #def deactivate_gripper(self):
-    #    rospy.wait_for_service('/ariac/' + self.robot + '/arm/gripper/control')
-    #    rospy.ServiceProxy('/ariac/' + self.robot + '/arm/gripper/control', VacuumGripperControl)(False)
+        try:
+            resp = act_gripp()
+            rospy.loginfo("Gripper activated.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
 
-    #def is_object_attached(self):
-    #    return rospy.wait_for_message('/ariac/' + self.robot + '/arm/gripper/state', VacuumGripperState)
+    def deactivate_kitting_gripper(self):
+        rospy.wait_for_service('/ariac/kitting/arm/gripper/control')
+        deact_gripp = rospy.ServiceProxy('/ariac/kitting/arm/gripper/control', VacuumGripperControl)(False)
 
-    def change_gripper(self):
+        try:
+            resp = deact_gripp()
+            rospy.loginfo("Gripper deactivated.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
+
+    def activate_gantry_gripper(self):
+        rospy.wait_for_service('/ariac/gantry/arm/gripper/control')
+        rospy.ServiceProxy('/ariac/gantry/arm/gripper/control', VacuumGripperControl)(True)
+
+        """try:
+            resp = act_gripp(True)
+            rospy.loginfo("Gantry gripper activated.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))"""
+
+    def deactivate_gantry_gripper(self):
+        rospy.wait_for_service('/ariac/gantry/arm/gripper/control')
+        act_gripp = rospy.ServiceProxy('/ariac/gantry/arm/gripper/control', VacuumGripperControl)
+
+        try:
+            resp = act_gripp(False)
+            rospy.loginfo("Gantry gripper deactivated.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
+
+    def is_object_attached_kitting(self):
+        return rospy.wait_for_message('/ariac/kitting/arm/gripper/state', VacuumGripperState)
+
+    def is_object_attached_gantry(self):
+        return rospy.wait_for_message('/ariac/gantry/arm/gripper/state', VacuumGripperState)
+
+    def change_gripper(self, gripper_type):
         rospy.wait_for_service('/ariac/gantry/arm/gripper/change')
-        rospy.ServiceProxy('/ariac/gantry/arm/gripper/change', ChangeGripper)(True)
+        change = rospy.ServiceProxy('/ariac/gantry/arm/gripper/change', ChangeGripper)
+
+        try:
+            resp = change(gripper_type)
+            rospy.loginfo("Gripper changed.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
+
+    def gripper_type(self):
+        return rospy.wait_for_message('/ariac/gantry/arm/gripper/type', String)
 
 
     ### DIRECT & INVERSE KINEMATICS ###
@@ -159,41 +205,49 @@ class Actuators():
 
         return np.array([[T[0, 3]], [T[1, 3]], [T[2, 3]], [w2[0, 0]], [w2[1, 0]], [w2[2, 0]]])
 
-    def inverse_kinematics_kitting_arm(self, target, temp_joint_state):
+    def euler_to_quaternion(self, roll, pitch, yaw):
+        qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+        qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+        qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+        qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+ 
+        return [qx, qy, qz, qw]
+
+
+    def inverse_kinematics_kitting_arm(self, target):
         # Inverse kinematics for kitting arm
         # INPUT:
         #   - target: numpy 3x1
-        #   - temp_joint_state: list 6x1
         # OUTPUT:
         #   - list 7x1
         print("usao u inverz")
+
+        quaternion_ang = self.euler_to_quaternion(target[3], target[4], target[5])
+
         targetPose = PoseStamped()
         targetPose.header.stamp = rospy.Time.now()
         targetPose.pose.position.x = target[0]
         targetPose.pose.position.y = target[1]
         targetPose.pose.position.z = target[2]
-        targetPose.pose.orientation.w = 1
+        targetPose.pose.orientation.x = quaternion_ang[0]
+        targetPose.pose.orientation.y = quaternion_ang[1]
+        targetPose.pose.orientation.z = quaternion_ang[2]
+        targetPose.pose.orientation.w = quaternion_ang[3]
+        print("TargetPose: ")
         print(targetPose)
 
         robotTemp = RobotState()
-        robotTemp.joint_state.name = ['elbow_joint', 'linear_arm_actuator_joint', 
-                                      'shoulder_lift_joint', 'shoulder_pan_joint', 
-                                      'vacuum_gripper_joint', 'wrist_1_joint', 
-                                      'wrist_2_joint', 'wrist_3_joint']
-        robotTemp.joint_state.position = temp_joint_state
+        robotTemp.joint_state.name = self.kitting_joint_state.name
+        robotTemp.joint_state.position = self.kitting_joint_state.position
+        print("RobotTemp: ")
         print(robotTemp)
 
         service_request = PositionIKRequest()
         service_request.group_name = "kitting_arm"
-        service_request.ik_link_names = ['elbow_joint', 'linear_arm_actuator_joint', 
-                                         'shoulder_lift_joint', 'shoulder_pan_joint', 
-                                         'vacuum_gripper_joint', 'wrist_1_joint', 
-                                         'wrist_2_joint', 'wrist_3_joint']
-        #service_request.ik_link_name = "vacuum_gripper_link"
         service_request.pose_stamped = targetPose
         service_request.robot_state = robotTemp
         service_request.timeout.secs = 1
-
+        print("service_request: ")
         print(service_request)
 
         rospy.wait_for_service('/ariac/kitting/compute_ik')
@@ -205,16 +259,68 @@ class Actuators():
             print("gotov inverz")
         except rospy.ServiceException as exc:
             print(exc)
-
+        print("return:")
+        print(list(resp.solution.joint_state.position))
         return list(resp.solution.joint_state.position)
 
-    """def direct_kinematics_gantry(self, gantry_joint_state):"""
+    def inverse_kinematics_gantry(self, target):
+        # Inverse kinematics for kitting arm
+        # INPUT:
+        #   - target: numpy 3x1
+        # OUTPUT:
+        #   - list 7x1
+        print("usao u inverz")
+
+        quaternion_ang = self.euler_to_quaternion(target[3], target[4], target[5])
+
+        targetPose = PoseStamped()
+        targetPose.header.stamp = rospy.Time.now()
+        targetPose.pose.position.x = target[0]
+        targetPose.pose.position.y = target[1]
+        targetPose.pose.position.z = target[2]
+        targetPose.pose.orientation.x = quaternion_ang[0]
+        targetPose.pose.orientation.y = quaternion_ang[1]
+        targetPose.pose.orientation.z = quaternion_ang[2]
+        targetPose.pose.orientation.w = quaternion_ang[3]
+        print("TargetPose: ")
+        print(targetPose)
+
+        rospy.sleep(0.5)
+        robotTemp = RobotState()
+        robotTemp.joint_state.name = self.gantry_joint_state.name
+        robotTemp.joint_state.position = self.gantry_joint_state.position
+
+        print("RobotTemp: ")
+        print(robotTemp)
+
+        service_request = PositionIKRequest()
+        service_request.group_name = "gantry_full"
+        service_request.pose_stamped = targetPose
+        service_request.robot_state = robotTemp
+        service_request.timeout.secs = 1
+        service_request.avoid_collisions = True
+        print("service_request: ")
+        print(service_request)
+
+        rospy.wait_for_service('/ariac/gantry/compute_ik')
+        compute_ik = rospy.ServiceProxy('/ariac/gantry/compute_ik', GetPositionIK)
+        
+        try:
+            resp = compute_ik(service_request)
+            rospy.loginfo(resp)
+            print("gotov inverz")
+        except rospy.ServiceException as exc:
+            print(exc)
+        print("return:")
+        print(list(resp.solution.joint_state.position))
+        return list(resp.solution.joint_state.position)
 
     def actuators_run(self):
         rospy.sleep(1.0)
         rospy.loginfo("123")
         #rospy.loginfo("FK za () = ", self.direct_kinematics_kitting_arm([1.7406034204577985, -1.512444221586856e-06, -1.2488649978462485, 0.00021580356888506458, -4.7316100815208983e-07, -2.0875959075821413, -1.5800032881696922, 5.921660003238571e-06]))
-        print("IK za (-1.9, 2.963, 1) = ", self.inverse_kinematics_kitting_arm([-1.9, 2.963994, 1], [1.9161646445517473, -0.009191674039686525, -1.0474143013112904, 0.05058105271385838, 5.638986859679562e-07, -2.1389875094127566, -1.5802695387377028, 0.0008106420737750142]))
+        print("IK za (-1.9, 2.963, 1) = ", self.inverse_kinematics_kitting_arm([-0.25, 0.7, 1.2], [[2.887680004303906, 0.7129823268720327, -2.5271091739946954, 4.361105553115772, -3.5243445088651564, -1.6358502975854903, 0.7084337129723515, 2.8318168610041994e-07]
+]))
         print("kraj run-a")
 
 if __name__ == '__main__':
