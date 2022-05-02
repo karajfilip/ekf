@@ -28,7 +28,7 @@ class CheckGripper(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        if self.act.gripper_type() !=  'gripper_part':
+        if str(self.act.gripper_type().data) !=  'gripper_part':
             ud.gripper = 'gripper_tray'
             return 'gripper_part'
         else:
@@ -111,7 +111,7 @@ class CheckMoveableTray(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        if self.act.gripper_type() !=  'gripper_tray':
+        if self.act.gripper_type().data !=  'gripper_tray':
             ud.gripper = 'gripper_tray'
             return 'changegripper'
         else:
