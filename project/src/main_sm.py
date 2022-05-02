@@ -48,13 +48,13 @@ if __name__ == '__main__':
         
         smach.StateMachine.add('CASSEMBLY', concurent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'nextOrder':'nextOrder'})
         
-        concurent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
+        concurent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
 
         with concurent_kitting:
-            smach.Concurrence.add('KITTING',  ksm, remapping={'task':'kittingtask'})
+            smach.Concurrence.add('KITTING',  ksm, remapping={'task':'kittingtask', 'faultybinposition':'faultybinposition'})
             smach.Concurrence.add('ORDERS', CheckOrders(), remapping={'nextOrder':'nextOrder', 'interrupted':'interrupted'})
 
-        smach.StateMachine.add('CKITTING', concurent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted'})
+        smach.StateMachine.add('CKITTING', concurent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
 
         smach.StateMachine.add('HPCHECKTASKS', CheckTasks(), transitions={'kitting':'KITTING', 'assembly':'ASSEMBLY', 'complete':'CONTINUEINTERRUPTED'}, remapping={'order':'nextOrder', 'task':'HPtask', 'kittingtask':'HPkittingtask'}) #define continue interrupted, save interrupted order
         smach.StateMachine.add('ASSEMBLY', asm, transitions={'finished':'CONTINUEINTERRUPTED'}, remapping={'task':'HPtask', 'kittingtask':'HPkittingtask'}) 

@@ -70,13 +70,13 @@ class GantryMovePart(smach.State):
         self.sen = Sensors_functions()
     
     def execute(self, ud):
-        pose_tray = self.sen.tf_transform(str("kit_tray_"+str(ud.task.agv[-1])))
+        pose_tray = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
         part_curr_pose = Pose()
         part_curr_pose.position.x = ud.partcurrentposition.x + pose_tray.position.x
         part_curr_pose.position.y = ud.partcurrentposition.y + pose_tray.position.y
         part_curr_pose.position.z = ud.partcurrentposition.z + pose_tray.position.z
         self.rm.pickup_gantry(part_curr_pose)
-        pose_briefase = self.sen.tf_transform(str("briefcase_"+str(ud.task.assembly_station[-1])))
+        pose_briefase = self.sen.tf_transform(str("briefcase_"+str((ud.task.assembly_station)[-1])))
         part_pose = Pose()
         part_pose.position.x = ud.part.pose.position.x + pose_briefase.position.x
         part_pose.position.y = ud.part.pose.position.y + pose_briefase.position.y
@@ -91,7 +91,7 @@ class CheckAGV(smach.State):
         self.node = process_management.process_management()
 
     def execute(self, ud):
-        if self.node.get_position_AGV(ud.task.agv)[:-1] != 'ks':
+        if (str(self.node.get_position_AGV(ud.task.agv)))[:-1] != 'ks':
             return 'agvnotatks'
         else:
             return 'agvatks'
@@ -157,7 +157,7 @@ class GantryGetTray(smach.State):
             if tray.type == ud.task.movabletray.movable_tray_type:
                 self.rm.pickup_gantry(tray.pose)
                 self.gp.move(ud.task.agv)
-                self.rm.place_gantry(self.sen.tf_transform(str("kit_tray_"+str(ud.task.agv[-1]))))
+                self.rm.place_gantry(self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1]))))
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
