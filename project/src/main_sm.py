@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     with sm:
 
-        smach.StateMachine.add('START', StartCompetition(), transitions={'success':'CHECKORDERS'})
+        smach.StateMachine.add('START', StartCompetition(), transitions={'success':'CHECKORDERS'}, remapping={'interrupted':'interrupted'})
         smach.StateMachine.add('CHECKORDERS', CheckOrders(), transitions={'complete':'end', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order', 'interrupted':'interrupted'})
         smach.StateMachine.add('CHECKTASKS', CheckTasks(), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
 
