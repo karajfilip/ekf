@@ -286,7 +286,8 @@ class Actuators():
             rospy.logerr(str(exc))
 
     def gripper_type(self):
-        return rospy.wait_for_message('/ariac/gantry/arm/gripper/type', String)
+        gripper_type = rospy.wait_for_message('/ariac/gantry/arm/gripper/type', String)
+        return str(gripper_type.data)
 
 
 
