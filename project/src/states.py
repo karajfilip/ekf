@@ -43,10 +43,10 @@ class CheckOrders(smach.State):
             order = self.node.orders[self.i]
             self.i += 1
             ud.nextOrder = order
-            if order.priority == 3:
-                return 'highPriorityOrder'
-            else:
-                return 'nextOrder'
+            if hasattr(order, 'priority'):
+                if order.priority == 3:
+                    return 'highPriorityOrder'
+            return 'nextOrder'
 
 class CheckTasks(smach.State):
     def __init__(self, outcomes=['kitting', 'assembly', 'complete'], input_keys=['order'], output_keys=['task', 'kittingtask']):
