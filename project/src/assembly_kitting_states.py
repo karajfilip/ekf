@@ -45,7 +45,7 @@ class SendGantry(smach.State):
 
 class SubmitAssemblyShipment(smach.State):
     def __init__(self, outcomes=['success'], input_keys=['task']):
-        smach.State.__init__(self, outcomes)
+        smach.State.__init__(self, outcomes, input_keys=input_keys)
         self.node = process_management.process_management()
     
     def execute(self, ud):
@@ -192,7 +192,7 @@ class CheckFaulty(smach.State):
 
 class SubmitKittingShipment(smach.State):
     def __init__(self, outcomes=['success'], input_keys=['task']):
-        smach.State.__init__(self, outcomes)
+        smach.State.__init__(self, outcomes, input_keys=input_keys)
         self.node = process_management.process_management()
     
     def execute(self, ud):
