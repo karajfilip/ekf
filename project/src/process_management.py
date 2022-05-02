@@ -5,7 +5,7 @@ import yaml
 import math
 
 from std_srvs.srv import Trigger
-from nist_gear.srv import AGVControl,  ConveyorBeltControl, AssemblyStationSubmitShipment, SubmitKittingShipment
+from nist_gear.srv import AGVControl,  ConveyorBeltControl, AssemblyStationSubmitShipment, SubmitKittingShipment, MoveToStation
 
 from geometry_msgs.msg import TransformStamped
 from nist_gear.msg import Orders, Model
@@ -16,7 +16,7 @@ from std_msgs.msg import String
 #from pick_and_place import RobotMover
 from Sensors import Sensors_functions
 
-class MainNode():
+class process_management():
 
     def __init__(self):
         #rospy.init_node('main_node', anonymous=True)
@@ -92,7 +92,8 @@ class MainNode():
         for product in assembly_products.products:
             part = {
                 "type": product.type,
-                "pose": product.pose
+                "pose_xyz": product.pose.xyz,
+                "pose_rpy": product.pose.rpy
             }
             parts.append(part)
 
@@ -121,6 +122,20 @@ class MainNode():
         except rospy.ServiceException as exc:
             rospy.logerr(str(exc))
 
+    ### Moving AGV
+    def get_position_AGV(self, agv):
+        return rospy.wait_for_message('/ariac/' + agv + '/station', String).data
+
+    def move_AGV(self, agv, station):
+        rospy.wait_for_service('/ariac/' + agv + '/move_to_station')
+        moveAGV = rospy.ServiceProxy('/ariac/' + agv + '/move_to_station', MoveToStation)
+
+        try:
+            resp = moveAGV(station)
+            rospy.loginfo("{0} moved to {1}".format(agv, station))
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
+
 
     def get_time(self):
         """ROS topic: Get simulation time"""
@@ -138,7 +153,10 @@ class MainNode():
         #while not rospy.is_shutdown():
 
         #r = rospy.Rate(10)
-
+        print("ovdje")
+        #position = self.get_position_AGV("agv1")
+        #print(position)
+        self.move_AGV("agv1", "as1")
         while not self.received_order:
             rospy.loginfo("Waiting for order...")
             pass
@@ -155,10 +173,10 @@ class MainNode():
         #self.end_competition()
 
 if __name__ == '__main__':
-    sen = Sensors_functions()
+    #sen = Sensors_functions()
     
-    n = MainNode()
-    print(sen.get_object_pose_in_workcell())
+    n = process_management()
+    #print(sen.get_object_pose_in_workcell())
     n.run()
     #var = RobotMover()
 
