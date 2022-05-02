@@ -158,7 +158,7 @@ class GantryGetTray(smach.State):
         self.gp.move('traystation')
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
-            if tray.type == ud.task.movabletray.movable_tray_type:
+            if tray.type == ud.task.movable_tray.movable_tray_type:
                 self.rm.pickup_gantry(tray.pose)
                 self.gp.move(ud.task.agv)
                 self.rm.place_gantry(self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1]))))
