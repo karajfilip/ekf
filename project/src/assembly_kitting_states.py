@@ -111,7 +111,7 @@ class CheckMoveableTray(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        if self.act.gripper_type().data !=  'gripper_tray':
+        if str(self.act.gripper_type().data) !=  'gripper_tray':
             ud.gripper = 'gripper_tray'
             return 'changegripper'
         else:
