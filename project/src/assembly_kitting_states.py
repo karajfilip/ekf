@@ -77,13 +77,13 @@ class GantryMovePart(smach.State):
         part_curr_pose.position.x = ud.partcurrentposition.x + pose_tray.position.x
         part_curr_pose.position.y = ud.partcurrentposition.y + pose_tray.position.y
         part_curr_pose.position.z = ud.partcurrentposition.z + pose_tray.position.z
-        self.rm.pickup_gantry(part_curr_pose)
+        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, 0, 0, 0])
         pose_briefase = self.sen.tf_transform(str("briefcase_"+str((ud.task.assembly_station)[-1])))
         part_pose = Pose()
         part_pose.position.x = ud.part.pose.position.x + pose_briefase.position.x
         part_pose.position.y = ud.part.pose.position.y + pose_briefase.position.y
         part_pose.position.z = ud.part.pose.position.z + pose_briefase.position.z
-        self.rm.place_gantry(part_pose.position)
+        self.rm.place_gantry([part_pose.position.x, part_pose.position.y, part_pose.position.z, 0, 0, 0])
         return 'moved'
 
 ## KITTING STATES
@@ -159,9 +159,10 @@ class GantryGetTray(smach.State):
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
             if tray.type == ud.task.movable_tray.movable_tray_type:
-                self.rm.pickup_gantry(tray.pose)
+                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, 0, 0, 0])
                 self.gp.move(ud.task.agv)
-                self.rm.place_gantry(self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1]))))
+                agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
+                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, 0, 0])
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
