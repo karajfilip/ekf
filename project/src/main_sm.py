@@ -18,7 +18,7 @@ if __name__ == '__main__':
         smach.StateMachine.add('FINDPART', FindPartOnTray(), transitions={'found':'GANTRYMOVEPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
         smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part'})
 
-    ksm = smach.StateMachine(outcomes=['finished'], input_keys=['task', 'faultybinposition'])
+    ksm = smach.StateMachine(outcomes=['finished'], input_keys=['kittingtask', 'faultybinposition'])
     with ksm:
         smach.StateMachine.add('CHECKAGV', CheckAGV(), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS'}, remapping={'task':'kittingtask'})
         smach.StateMachine.add('MOVEAGVTOKS', SendAGV(), transitions={'agvatks':'CHECKTRAY'}, remapping={'task':'kittingtask'})
