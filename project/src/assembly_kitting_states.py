@@ -137,11 +137,11 @@ class GetGripper(smach.State):
         try:
             self.act.change_gripper(
                 str(ud.gripper))
-            rospy.logerr(self.act.gripper_type().data)
+            rospy.logerr(self.act.gripper_type)
         except rospy.ServiceException as exc:
             print(str(exc))
 
-        while(self.act.gripper_type().data != ud.gripper):
+        while(self.act.gripper_type != ud.gripper):
             rospy.sleep(0.2)
         return 'gripperon'
 
