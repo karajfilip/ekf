@@ -138,7 +138,7 @@ class GetGripper(smach.State):
 
         rospy.sleep(1)  # TODO rijesi ovo s pozicijom i whileom
 
-        print(self.act.gripper_type())
+        print(self.act.gripper_type)
         try:
             self.act.change_gripper(
                 str(ud.gripper))
