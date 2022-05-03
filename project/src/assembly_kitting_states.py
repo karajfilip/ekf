@@ -131,14 +131,14 @@ class GetGripper(smach.State):
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
         curr_pose = self.act.direct_kinematics_gantry_arm()
-        self.rm.pickup_gantry([curr_pose[0], curr_pose[1], curr_pose[2], 0, pi/2, 0])
+        self.rm.pickup_gantry([curr_pose[0], curr_pose[1], curr_pose[2]+0.2, 0, pi/2, 0], 1)
         self.gp.move('gripperstation')
         rospy.sleep(5)  # TODO pozicija i while
         print("gantry je iznad gripper stationa.")
 
         rospy.sleep(1)  # TODO rijesi ovo s pozicijom i whileom
 
-        print(self.act.gripper_type().data)
+        print(self.act.gripper_type())
         try:
             self.act.change_gripper(
                 str(ud.gripper))
