@@ -44,7 +44,7 @@ class SendGantry(smach.State):
         self.rm = pick_and_place.RobotMover()
 
     def execute(self, ud):
-        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm().extend([0,0,0]))
         self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move(ud.task.station_id)
         return 'arrived'
@@ -132,7 +132,7 @@ class GetGripper(smach.State):
         self.act = Actuators.Actuators()
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
-        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm().extend([0,0,0]))
         self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move('gripperstation')
         rospy.sleep(5)  # TODO pozicija i while
@@ -158,9 +158,10 @@ class GantryGetTray(smach.State):
         self.gp = path_planning.GantryPlanner()
         self.rm = pick_and_place.RobotMover()
         self.sen = Sensors_functions()
+        self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm().extend([0,0,0]))
         self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move('traystation')
         self.objects = self.sen.get_object_pose_in_workcell()
