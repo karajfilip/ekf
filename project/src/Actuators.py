@@ -132,7 +132,7 @@ class Actuators():
         return rospy.wait_for_message('/ariac/kitting/arm/gripper/state', VacuumGripperState)
 
     def is_object_attached_gantry(self):
-        return rospy.wait_for_message('/ariac/kitting/arm/gripper/state', VacuumGripperState)
+        return rospy.wait_for_message('/ariac/gantry/arm/gripper/state', VacuumGripperState)
     
     def change_gripper(self, gripper_type):
         rospy.wait_for_service('/ariac/gantry/arm/gripper/change')
