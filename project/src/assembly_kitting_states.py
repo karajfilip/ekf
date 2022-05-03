@@ -40,8 +40,12 @@ class SendGantry(smach.State):
     def __init__(self, outcomes=['arrived'], input_keys=['task']):
         smach.State.__init__(self, outcomes, input_keys)
         self.gp = path_planning.GantryPlanner()
+        self.act = Actuators.Actuators()
+        self.rm = pick_and_place.RobotMover()
 
     def execute(self, ud):
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move(ud.task.station_id)
         return 'arrived'
 
@@ -128,8 +132,8 @@ class GetGripper(smach.State):
         self.act = Actuators.Actuators()
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
-        pos = self.act.direct_kinematics_gantry_arm()
-        self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, 0, pi/2, 0])
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move('gripperstation')
         rospy.sleep(5)  # TODO pozicija i while
         print("gantry je iznad gripper stationa.")
@@ -156,18 +160,16 @@ class GantryGetTray(smach.State):
         self.sen = Sensors_functions()
 
     def execute(self, ud):
-        pos = self.act.direct_kinematics_gantry_arm()
-        self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, 0, pi/2, 0])
+        pos = self.act.inverse_kinematics_gantry(self.act.direct_kinematics_gantry_arm())
+        self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, pos[3], pos[4], pos[5]])
         self.gp.move('traystation')
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
             if tray.type == ud.task.movable_tray.movable_tray_type:
-                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, 0, 0, 0])
-                pos = self.act.direct_kinematics_gantry_arm()
-                self.rm.pickup_gantry([pos[0], pos[1], pos[2]+0.5, 0, pi/2, 0])
+                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, tray.pose.orientation.x, tray.pose.orientation.y, tray.pose.orientation.z])
                 self.gp.move(ud.task.agv)
                 agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
-                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, 0, 0])
+                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, agv_pose.orientation.x, agv_pose.orientation.y, agv_pose.orientation.z])
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
