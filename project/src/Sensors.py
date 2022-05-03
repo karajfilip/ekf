@@ -41,10 +41,10 @@ class Sensors_functions():
         #      continue
 
         # remove stale transforms
-        tf_time = rospy.Time(
-            world_tf.header.stamp.secs,
-            world_tf.header.stamp.nsecs
-        )
+        # tf_time = rospy.Time(
+        #     world_tf.header.stamp.secs,
+        #     world_tf.header.stamp.nsecs
+        # )
         # if rospy.Time.now() - tf_time > rospy.Duration(1.0):
         #     continue
 

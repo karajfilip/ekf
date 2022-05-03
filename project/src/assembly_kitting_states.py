@@ -28,8 +28,7 @@ class CheckGripper(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        # gripper = self.act.gripper_type().data
-        gripper = 'gripper_part'
+        gripper = self.act.gripper_type
         if str(gripper) !=  'gripper_part':
             ud.gripper = 'gripper_tray'
             return 'gripper_part'
@@ -77,13 +76,13 @@ class GantryMovePart(smach.State):
         part_curr_pose.position.x = ud.partcurrentposition.x + pose_tray.position.x
         part_curr_pose.position.y = ud.partcurrentposition.y + pose_tray.position.y
         part_curr_pose.position.z = ud.partcurrentposition.z + pose_tray.position.z
-        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, 0, 0, 0])
+        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, part_curr_pose.orientation.x, part_curr_pose.orientation.y, part_curr_pose.orientation.z])
         pose_briefase = self.sen.tf_transform(str("briefcase_"+str((ud.task.assembly_station)[-1])))
         part_pose = Pose()
         part_pose.position.x = ud.part.pose.position.x + pose_briefase.position.x
         part_pose.position.y = ud.part.pose.position.y + pose_briefase.position.y
         part_pose.position.z = ud.part.pose.position.z + pose_briefase.position.z
-        self.rm.place_gantry([part_pose.position.x, part_pose.position.y, part_pose.position.z, 0, 0, 0])
+        self.rm.place_gantry([part_pose.position.x, part_pose.position.y, part_pose.position.z, part_pose.orientation.x, part_pose.orientation.y, part_pose.orientation.z])
         return 'moved'
 
 ## KITTING STATES
@@ -113,8 +112,7 @@ class CheckMoveableTray(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        # gripper = self.act.gripper_type()
-        gripper = 'gripper_tray'
+        gripper = self.act.gripper_type
         if str(gripper) !=  'gripper_tray':
             ud.gripper = 'gripper_tray'
             return 'changegripper'

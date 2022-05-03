@@ -101,7 +101,7 @@ class Actuators():
         self.kitting_arm_state = msg
 
     def gripper_type_callback(self, msg):
-        self.gripper_type = msg
+        self.gripper_type = msg.data
 
     def conveyor_belt_state_callback(self, msg):
         # power -> power of belt
@@ -131,9 +131,23 @@ class Actuators():
     def is_object_attached_kitting(self):
         return rospy.wait_for_message('/ariac/kitting/arm/gripper/state', VacuumGripperState)
 
-    def change_gripper(self):
+    def is_object_attached_gantry(self):
+        return rospy.wait_for_message('/ariac/gantry/arm/gripper/state', VacuumGripperState)
+    
+    def change_gripper(self, gripper_type):
         rospy.wait_for_service('/ariac/gantry/arm/gripper/change')
-        rospy.ServiceProxy('/ariac/gantry/arm/gripper/change', ChangeGripper)(True)
+        change = rospy.ServiceProxy('/ariac/gantry/arm/gripper/change', ChangeGripper)
+
+        try:
+            resp = change(gripper_type)
+            rospy.loginfo("Gripper changed.")
+        except rospy.ServiceException as exc:
+            rospy.logerr(str(exc))
+
+    #def gripper_type(self):
+    #    gripper_type = rospy.wait_for_message('/ariac/gantry/arm/gripper/type', String)
+    #    return str(gripper_type.data)
+   
 
 
     ### DIRECT & INVERSE KINEMATICS ###
@@ -273,21 +287,6 @@ class Actuators():
         print("return:")
         print(list(resp.solution.joint_state.position))
         return list(resp.solution.joint_state.position)
-
-
-    def change_gripper(self, gripper_type):
-        rospy.wait_for_service('/ariac/gantry/arm/gripper/change')
-        change = rospy.ServiceProxy('/ariac/gantry/arm/gripper/change', ChangeGripper)
-
-        try:
-            resp = change(gripper_type)
-            rospy.loginfo("Gripper changed.")
-        except rospy.ServiceException as exc:
-            rospy.logerr(str(exc))
-
-    def gripper_type(self):
-        gripper_type = rospy.wait_for_message('/ariac/gantry/arm/gripper/type', String)
-        return str(gripper_type.data)
 
 
 
