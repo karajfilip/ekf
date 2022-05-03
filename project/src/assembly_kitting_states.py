@@ -137,7 +137,7 @@ class GetGripper(smach.State):
         start_pose.append(0)
         start_pose.append(0)
         start_pose = self.act.inverse_kinematics_gantry(start_pose, 1)
-        self.rm.pickup_gantry(start_pose[0], start_pose[1], start_pose[2]+0.2)
+        self.rm.pickup_gantry([start_pose[0], start_pose[1], start_pose[2]+0.2, start_pose[3], start_pose[4], start_pose[5]], 1)
         self.gp.move('gripperstation')
         rospy.sleep(5)  # TODO pozicija i while
         print("gantry je iznad gripper stationa.")
