@@ -37,7 +37,7 @@ class Sensors_functions():
                 rospy.Duration(0.1)
             )
         except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
-            print(frame)
+            print(frame, e)
         #      continue
 
         # remove stale transforms

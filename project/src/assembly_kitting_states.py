@@ -163,10 +163,10 @@ class GantryGetTray(smach.State):
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
             if tray.type == ud.task.movable_tray.movable_tray_type:
-                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, tray.pose.orientation.x, tray.pose.orientation.y, tray.pose.orientation.z])
+                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, 0, pi/2, 0])
                 self.gp.move(ud.task.agv)
                 agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
-                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, agv_pose.orientation.x, agv_pose.orientation.y, agv_pose.orientation.z])
+                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, 0])
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
