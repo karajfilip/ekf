@@ -5,11 +5,12 @@ import process_management
 from nist_gear.msg import Order
 
 class StartCompetition(smach.State):
-    def __init__(self, outcomes=['success']):
-        smach.State.__init__(self, outcomes)
+    def __init__(self, outcomes=['success'], output_keys=['interrupted']):
+        smach.State.__init__(self, outcomes, output_keys=output_keys)
         self.node = process_management.process_management()
 
     def execute(self, ud):
+        ud.interrupted = False
         self.node.start_competition()
         return 'success'
 
@@ -42,10 +43,10 @@ class CheckOrders(smach.State):
             order = self.node.orders[self.i]
             self.i += 1
             ud.nextOrder = order
-            if order.priority == 3:
-                return 'highPriorityOrder'
-            else:
-                return 'nextOrder'
+            if hasattr(order, 'priority'):
+                if order.priority == 3:
+                    return 'highPriorityOrder'
+            return 'nextOrder'
 
 class CheckTasks(smach.State):
     def __init__(self, outcomes=['kitting', 'assembly', 'complete'], input_keys=['order'], output_keys=['task', 'kittingtask']):

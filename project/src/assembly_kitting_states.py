@@ -7,6 +7,7 @@ import path_planning
 import Actuators
 from Sensors import Sensors_functions
 from geometry_msgs.msg import Pose
+from math import pi
 
 class CheckPart(smach.State):
     def __init__(self, outcomes=['noParts', 'newPart'], input_keys=['task'], output_keys=['part']):
@@ -28,7 +29,8 @@ class CheckGripper(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        if self.act.gripper_type() !=  'gripper_part':
+        gripper = self.act.gripper_type
+        if str(gripper) !=  'gripper_part':
             ud.gripper = 'gripper_tray'
             return 'gripper_part'
         else:
@@ -38,6 +40,8 @@ class SendGantry(smach.State):
     def __init__(self, outcomes=['arrived'], input_keys=['task']):
         smach.State.__init__(self, outcomes, input_keys)
         self.gp = path_planning.GantryPlanner()
+        self.act = Actuators.Actuators()
+        self.rm = pick_and_place.RobotMover()
 
     def execute(self, ud):
         self.gp.move(ud.task.station_id)
@@ -45,7 +49,7 @@ class SendGantry(smach.State):
 
 class SubmitAssemblyShipment(smach.State):
     def __init__(self, outcomes=['success'], input_keys=['task']):
-        smach.State.__init__(self, outcomes)
+        smach.State.__init__(self, outcomes, input_keys=input_keys)
         self.node = process_management.process_management()
     
     def execute(self, ud):
@@ -70,18 +74,18 @@ class GantryMovePart(smach.State):
         self.sen = Sensors_functions()
     
     def execute(self, ud):
-        pose_tray = self.sen.tf_transform(str("kit_tray_"+str(ud.task.agv[-1])))
+        pose_tray = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
         part_curr_pose = Pose()
         part_curr_pose.position.x = ud.partcurrentposition.x + pose_tray.position.x
         part_curr_pose.position.y = ud.partcurrentposition.y + pose_tray.position.y
         part_curr_pose.position.z = ud.partcurrentposition.z + pose_tray.position.z
-        self.rm.pickup_gantry(part_curr_pose)
-        pose_briefase = self.sen.tf_transform(str("briefcase_"+str(ud.task.assembly_station[-1])))
+        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, part_curr_pose.orientation.x, part_curr_pose.orientation.y, part_curr_pose.orientation.z])
+        pose_briefase = self.sen.tf_transform(str("briefcase_"+str((ud.task.assembly_station)[-1])))
         part_pose = Pose()
         part_pose.position.x = ud.part.pose.position.x + pose_briefase.position.x
         part_pose.position.y = ud.part.pose.position.y + pose_briefase.position.y
         part_pose.position.z = ud.part.pose.position.z + pose_briefase.position.z
-        self.rm.place_gantry(part_pose.position)
+        self.rm.place_gantry([part_pose.position.x, part_pose.position.y, part_pose.position.z, part_pose.orientation.x, part_pose.orientation.y, part_pose.orientation.z])
         return 'moved'
 
 ## KITTING STATES
@@ -91,7 +95,7 @@ class CheckAGV(smach.State):
         self.node = process_management.process_management()
 
     def execute(self, ud):
-        if self.node.get_position_AGV(ud.task.agv)[:-1] != 'ks':
+        if (str(self.node.get_position_AGV(ud.task.agv)))[:-1] != 'ks':
             return 'agvnotatks'
         else:
             return 'agvatks'
@@ -111,7 +115,8 @@ class CheckMoveableTray(smach.State):
         self.act = Actuators.Actuators()
 
     def execute(self, ud):
-        if self.act.gripper_type() !=  'gripper_tray':
+        gripper = self.act.gripper_type
+        if str(gripper) !=  'gripper_tray':
             ud.gripper = 'gripper_tray'
             return 'changegripper'
         else:
@@ -125,21 +130,23 @@ class GetGripper(smach.State):
         self.act = Actuators.Actuators()
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
+        curr_pose = self.act.direct_kinematics_gantry_arm()
+        self.rm.pickup_gantry([curr_pose[0], curr_pose[1], curr_pose[2]+0.2, 0, pi/2, 0], 1)
         self.gp.move('gripperstation')
         rospy.sleep(5)  # TODO pozicija i while
         print("gantry je iznad gripper stationa.")
 
         rospy.sleep(1)  # TODO rijesi ovo s pozicijom i whileom
 
-        print(self.act.gripper_type().data)
+        print(self.act.gripper_type)
         try:
             self.act.change_gripper(
                 str(ud.gripper))
-            rospy.logerr(self.act.gripper_type().data)
+            rospy.logerr(self.act.gripper_type)
         except rospy.ServiceException as exc:
             print(str(exc))
 
-        while(self.act.gripper_type().data != ud.gripper):
+        while(self.act.gripper_type != ud.gripper):
             rospy.sleep(0.2)
         return 'gripperon'
 
@@ -149,15 +156,17 @@ class GantryGetTray(smach.State):
         self.gp = path_planning.GantryPlanner()
         self.rm = pick_and_place.RobotMover()
         self.sen = Sensors_functions()
+        self.act = Actuators.Actuators()
 
     def execute(self, ud):
         self.gp.move('traystation')
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
-            if tray.type == ud.task.movabletray.movable_tray_type:
-                self.rm.pickup_gantry(tray.pose)
+            if tray.type == ud.task.movable_tray.movable_tray_type:
+                self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, 0, pi/2, 0])
                 self.gp.move(ud.task.agv)
-                self.rm.place_gantry(self.sen.tf_transform(str("kit_tray_"+str(ud.task.agv[-1]))))
+                agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
+                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, 0])
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
@@ -192,7 +201,7 @@ class CheckFaulty(smach.State):
 
 class SubmitKittingShipment(smach.State):
     def __init__(self, outcomes=['success'], input_keys=['task']):
-        smach.State.__init__(self, outcomes)
+        smach.State.__init__(self, outcomes, input_keys=input_keys)
         self.node = process_management.process_management()
     
     def execute(self, ud):

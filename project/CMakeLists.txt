@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-catkin_python_setup()
+# catkin_python_setup()
 
 catkin_package()
 
@@ -24,9 +24,9 @@ catkin_package()
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 ## Declare a C++ executable
-add_executable(ariac_example_node src/ariac_example_cpp/ariac_example_node.cpp)
-add_dependencies(ariac_example_node ${catkin_EXPORTED_TARGETS})
-target_link_libraries(ariac_example_node ${catkin_LIBRARIES})
+# add_executable(ariac_example_node src/ariac_example_cpp/ariac_example_node.cpp)
+# add_dependencies(ariac_example_node ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(ariac_example_node ${catkin_LIBRARIES})
 
 #############
 ## Install ##
@@ -37,17 +37,16 @@ target_link_libraries(ariac_example_node ${catkin_LIBRARIES})
 
 ## Mark executable scripts (Python etc.) for installation
 install(PROGRAMS
-  script/ariac_example_node.py
-  script/tf2_example.py
+  src/main_sm.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark executables and/or libraries for installation
-install(TARGETS ariac_example_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# install(TARGETS ariac_example_node
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/

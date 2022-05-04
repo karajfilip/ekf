@@ -15,10 +15,10 @@ if __name__ == '__main__':
         smach.StateMachine.add('SENDGANTRY', SendGantry(), transitions={'arrived':'CHECKPART'}, remapping={'task':'task'})
         smach.StateMachine.add('CHECKPART', CheckPart(), transitions={'noParts':'SUBMITASSEMBLY', 'newPart':'FINDPART'}, remapping={'task':'task', 'part':'part'})
         smach.StateMachine.add('SUBMITASSEMBLY', SubmitAssemblyShipment(), transitions={'success':'finished'}, remapping={'task':'task'})
-        smach.StateMachine.add('FINDPART', FindPartOnTray(), transitions={'found':'GANTRYMOVEPART'}, remapping={'task':'task', 'partcurrentposition': 'partcurrentposition'})
+        smach.StateMachine.add('FINDPART', FindPartOnTray(), transitions={'found':'GANTRYMOVEPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
         smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part'})
 
-    ksm = smach.StateMachine(outcomes=['finished'], input_keys=['task', 'faultybinposition'])
+    ksm = smach.StateMachine(outcomes=['finished'], input_keys=['kittingtask', 'faultybinposition'])
     with ksm:
         smach.StateMachine.add('CHECKAGV', CheckAGV(), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS'}, remapping={'task':'kittingtask'})
         smach.StateMachine.add('MOVEAGVTOKS', SendAGV(), transitions={'agvatks':'CHECKTRAY'}, remapping={'task':'kittingtask'})
@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     with sm:
 
-        smach.StateMachine.add('START', StartCompetition(), transitions={'success':'CHECKORDERS'})
+        smach.StateMachine.add('START', StartCompetition(), transitions={'success':'CHECKORDERS'}, remapping={'interrupted':'interrupted'})
         smach.StateMachine.add('CHECKORDERS', CheckOrders(), transitions={'complete':'end', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order', 'interrupted':'interrupted'})
         smach.StateMachine.add('CHECKTASKS', CheckTasks(), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
 
@@ -48,18 +48,25 @@ if __name__ == '__main__':
         
         smach.StateMachine.add('CASSEMBLY', concurent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'nextOrder':'nextOrder'})
         
-        concurent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['task'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
+        concurent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
 
         with concurent_kitting:
-            smach.Concurrence.add('KITTING',  ksm, remapping={'task':'kittingtask'})
+            smach.Concurrence.add('KITTING',  ksm, remapping={'task':'kittingtask', 'faultybinposition':'faultybinposition'})
             smach.Concurrence.add('ORDERS', CheckOrders(), remapping={'nextOrder':'nextOrder', 'interrupted':'interrupted'})
 
-        smach.StateMachine.add('CKITTING', concurent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'nextOrder':'nextOrder'})
+        smach.StateMachine.add('CKITTING', concurent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
 
         smach.StateMachine.add('HPCHECKTASKS', CheckTasks(), transitions={'kitting':'KITTING', 'assembly':'ASSEMBLY', 'complete':'CONTINUEINTERRUPTED'}, remapping={'order':'nextOrder', 'task':'HPtask', 'kittingtask':'HPkittingtask'}) #define continue interrupted, save interrupted order
         smach.StateMachine.add('ASSEMBLY', asm, transitions={'finished':'CONTINUEINTERRUPTED'}, remapping={'task':'HPtask', 'kittingtask':'HPkittingtask'}) 
         smach.StateMachine.add('KITTING', ksm, transitions={'finished':'HPCHECKTASKS'}, remapping={'task':'HPkittingtask'})    
         smach.StateMachine.add('CONTINUEINTERRUPTED', ContinueInterrupted(), transitions={'continue':'CHECKORDERS'}, remapping={'interrupted':'interrupted'}) 
+
+    faultybin = Pose()
+    faultybin.position.x = 0
+    faultybin.position.y = 0
+    faultybin.position.z = 0
+
+    sm.userdata.faultybinposition = faultybin.position
 
     rospy.init_node('main_node', anonymous=True)
     
