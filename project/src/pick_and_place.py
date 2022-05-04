@@ -33,7 +33,8 @@ class RobotMover:
         self.track_poses = PoseArray()
         self.watching_gantry = False
         self.watching_kitting = False
-        self.picked_from_tray = False
+        self.kitting_pickedup = False
+        self.gantry_pickedup = False
 
     # Ako se radi pickup, gledaj state grippera. Kad uhvati objekt, prestani micat robota
     def vacuum_kitting_state_cb(self, data):
@@ -43,7 +44,7 @@ class RobotMover:
                 self.cancel_kitting()
                 self.watching_kitting = False
                 picked_up = True
-                self.picked_from_tray = True
+                self.kitting_pickedup = True
         else:
             return
 
@@ -54,7 +55,7 @@ class RobotMover:
                 self.cancel_gantry()
                 self.watching_gantry = False
                 picked_up = True
-                self.picked_from_tray = True
+                self.gantry_pickedup = True
         else:
             return
 
@@ -135,6 +136,7 @@ class RobotMover:
         # 2) Pomakni robota 0.5 iznad objekta
         # 3) Aktiviraj gripper, te pomici robota ispod dok ga ne uhvatis
 
+        self.kitting_pickedup = False
         inv_start = list(self.inverse_kin.kitting_joint_state.position)
         inv_start[2] = inv_start[2] + 0.3
         del inv_start[4]
@@ -251,7 +253,11 @@ class RobotMover:
     # Gantry ima dodatnu varijablu joints, koja determinira koji dio gantry se treba pomaknuti. Za micanje samo baze koristi path_planner.py!!!
     # 0 - Cijeli gantry
     # 1 - samo ruka
-    def pickup_gantry(self, position, joints=0):
+    # Liftup odreduje treba li dici ruku prije nego se krene
+    # 0 - Nemoj dici ruku
+    # 1 - Digni ruku prije bilo cega drugog
+    def pickup_gantry(self, position, joints=0, liftup=0):
+        self.gantry_pickedup = False
         inv_start = self.inverse_kin.direct_kinematics_gantry_arm()
         print ("START:" + str(inv_start))
         inv_start[2] = inv_start[2] + 0.1
@@ -277,31 +283,32 @@ class RobotMover:
 
         # Napravi pointove
         if joints == 0:
-            point_arm = JointTrajectoryPoint()
-            point_arm.positions = start_position_arm
-            point_arm.time_from_start = rospy.Duration(1)
-            trajectory_arm.points.append(point_arm)
+            if liftup == 1:
+                point_arm = JointTrajectoryPoint()
+                point_arm.positions = start_position_arm
+                point_arm.time_from_start = rospy.Duration(1)
+                trajectory_arm.points.append(point_arm)
+
+                point_torso = JointTrajectoryPoint()
+                point_torso.positions = start_position_torso
+                point_torso.time_from_start = rospy.Duration(1)
+                trajectory_torso.points.append(point_torso)
 
             point_arm = JointTrajectoryPoint()
             point_arm.positions = end_position_arm
             point_arm.time_from_start = rospy.Duration(1.5)
             trajectory_arm.points.append(point_arm)
 
-
-            point_torso = JointTrajectoryPoint()
-            point_torso.positions = start_position_torso
-            point_torso.time_from_start = rospy.Duration(1)
-            trajectory_torso.points.append(point_torso)
-
             point_torso = JointTrajectoryPoint()
             point_torso.positions = end_position_torso
             point_torso.time_from_start = rospy.Duration(1.5)
             trajectory_torso.points.append(point_torso)
         elif joints == 1:
-            point_arm = JointTrajectoryPoint()
-            point_arm.positions = start_position_arm
-            point_arm.time_from_start = rospy.Duration(1)
-            trajectory_arm.points.append(point_arm)
+            if liftup == 1:
+                point_arm = JointTrajectoryPoint()
+                point_arm.positions = start_position_arm
+                point_arm.time_from_start = rospy.Duration(1)
+                trajectory_arm.points.append(point_arm)
 
             point_arm = JointTrajectoryPoint()
             point_arm.positions = end_position_arm
@@ -491,9 +498,9 @@ class RobotMover:
         print("sent")
         return
 
-    def move_directly_gantry(self, position):
+    def move_directly_gantry(self, position, joints = 0):
         rospy.sleep(0.5)
-        inv_position = self.inverse_kin.inverse_kinematics_gantry(position)
+        inv_position = self.inverse_kin.inverse_kinematics_gantry(position, joints)
         inv_position_arm = inv_position[3:-1]
         inv_position_torso = inv_position[0:3]
 
@@ -519,7 +526,8 @@ class RobotMover:
         trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
         trajectory_torso.header.stamp = rospy.Time.now()
 
-        self.gantry_torso_cmd.publish(trajectory_torso)
+        if joints == 0:
+            self.gantry_torso_cmd.publish(trajectory_torso)
         self.gantry_cmd.publish(trajectory_arm)
         print("sent")
         return

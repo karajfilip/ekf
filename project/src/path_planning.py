@@ -76,13 +76,13 @@ class GantryPlanner:
             station_number = 5
         elif (station == 'traystation'):
             station_number = 6
-        elif (station == 'agv1'):
-            station_number = 7
-        elif (station == 'agv2'):
-            station_number = 8
-        elif (station == 'agv3'):
-            station_number = 9
         elif (station == 'agv4'):
+            station_number = 7
+        elif (station == 'agv3'):
+            station_number = 8
+        elif (station == 'agv2'):
+            station_number = 9
+        elif (station == 'agv1'):
             station_number = 10
         elif (station == 'home'):
             station_number = 11

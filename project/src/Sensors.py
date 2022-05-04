@@ -26,19 +26,22 @@ class Sensors_functions():
         '''
         tf_buffer = tf2_ros.Buffer()
         tf_listener = tf2_ros.TransformListener(tf_buffer)
+        success = False
 
         # wait for all cameras to be broadcasting
-
-        try:
-            world_tf = tf_buffer.lookup_transform(
-                'world',
-                str(frame),
-                rospy.Time(),
-                rospy.Duration(0.1)
-            )
-        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
-            print(frame, e)
-        #      continue
+        while (not success):
+            try:
+                success = True
+                world_tf = tf_buffer.lookup_transform(
+                    'world',
+                    str(frame),
+                    rospy.Time(),
+                    rospy.Duration(0.1)
+                )
+            except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+                #print(frame, e)
+                success = False
+                continue
 
         # remove stale transforms
         # tf_time = rospy.Time(
@@ -87,6 +90,7 @@ class Sensors_functions():
                     rospy.Duration(0.1)
                 )
             except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+                print(str(e))
                 continue
 
             # remove stale transforms

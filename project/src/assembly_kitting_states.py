@@ -160,13 +160,24 @@ class GantryGetTray(smach.State):
 
     def execute(self, ud):
         self.gp.move('traystation')
+        while self.gp.checking_position:
+            rospy.sleep(0.2)
         self.objects = self.sen.get_object_pose_in_workcell()
         for tray in self.objects:
             if tray.type == ud.task.movable_tray.movable_tray_type:
                 self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z, 0, pi/2, 0])
+                while not self.rm.gantry_pickedup:
+                    rospy.sleep(0.2)
+
+                robot_rot_on_pickup = self.rm.inverse_kin.gantry_torso_state.actual.positions[1]
+                self.rm.move_directly_gantry([tray.pose.position.x, tray.pose.position.y + 0.1, tray.pose.position.z + 0.15, 0, pi/2, 0], 1)
                 self.gp.move(ud.task.agv)
+                while self.gp.checking_position:
+                    rospy.sleep(0.2)
+
                 agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
-                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, 0])
+                robot_rot_on_place = self.rm.inverse_kin.gantry_torso_state.actual.positions[1]
+                self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, -robot_rot_on_place+robot_rot_on_pickup])
                 return 'trayon'
 
 class FindPartInEnvironment(smach.State):
