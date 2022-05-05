@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     rm = pick_and_place.RobotMover()
     act = rm.inverse_kin
-    sen = Sensors_functions
+    sen = Sensors_functions()
     gp = path_planning.GantryPlanner()
     node = process_management.process_management()
 
