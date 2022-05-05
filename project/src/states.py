@@ -5,9 +5,9 @@ import process_management
 from nist_gear.msg import Order
 
 class StartCompetition(smach.State):
-    def __init__(self, outcomes=['success'], output_keys=['interrupted']):
+    def __init__(self, processmgmt, outcomes=['success'], output_keys=['interrupted']):
         smach.State.__init__(self, outcomes, output_keys=output_keys)
-        self.node = process_management.process_management()
+        self.node = processmgmt
 
     def execute(self, ud):
         ud.interrupted = False
@@ -15,18 +15,18 @@ class StartCompetition(smach.State):
         return 'success'
 
 class EndCompetition(smach.State):
-    def __init__(self, outcomes=['ended']):
+    def __init__(self, processmgmt, outcomes=['ended']):
         smach.State.__init__(self, outcomes)
-        self.node = process_management.process_management()
+        self.node = processmgmt
     
     def execute(self, ud):
         self.node.end_competition()
         return 'ended'
 
 class CheckOrders(smach.State):
-    def __init__(self, outcomes=['complete', 'nextOrder', 'highPriorityOrder'], input_keys=['interrupted'], output_keys=['nextOrder']):
+    def __init__(self, processmgmt, outcomes=['complete', 'nextOrder', 'highPriorityOrder'], input_keys=['interrupted'], output_keys=['nextOrder']):
         smach.State.__init__(self, outcomes, output_keys=output_keys, input_keys=input_keys)
-        self.node = process_management.process_management()
+        self.node = processmgmt
         self.i = 0
 
     def execute(self, ud):
