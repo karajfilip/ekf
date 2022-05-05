@@ -10,8 +10,8 @@ class CheckPart(smach.State):
         self.i = 0
 
     def execute(self, ud):
-        if self.i < len(self.products):
-            ud.part = self.products[self.i]
+        if self.i < len(ud.task.products):
+            ud.part = ud.task.products[self.i]
             self.i += 1
             return 'newPart'
         else:
@@ -168,7 +168,7 @@ class GantryGetTray(smach.State):
 
                 agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
                 robot_rot_on_place = self.rm.inverse_kin.gantry_torso_state.actual.positions[1]
-                self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z+0.5, 0, pi/2, -robot_rot_on_place+robot_rot_on_pickup])
+                self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z+0.5, 0, pi/2, -robot_rot_on_place+robot_rot_on_pickup + pi/2])
                 self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, -robot_rot_on_place+robot_rot_on_pickup])
                 return 'trayon'
 
