@@ -471,6 +471,7 @@ class RobotMover:
 
 
         while not self.check_gantry_position(end_position):
+            print("trying to reach end position")
             rospy.sleep(0.2)
         self.inverse_kin.deactivate_gantry_gripper()
         print("Let go")
