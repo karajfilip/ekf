@@ -8,6 +8,7 @@ import pick_and_place
 from Sensors import Sensors_functions
 import path_planning
 import process_management
+import nist_assembly
 import smach_ros
 
 def sm_cb(outcome_map):
@@ -23,17 +24,18 @@ if __name__ == '__main__':
     sen = Sensors_functions()
     gp = path_planning.GantryPlanner()
     node = process_management.process_management() 
+    ass = nist_assembly.AssemblyCommander()
 
     asm = smach.StateMachine(outcomes=['finished'], input_keys=['task', 'kittingtask'])
 
     with asm:
         smach.StateMachine.add('CHECKGRIPPER', CheckGripper(act), transitions={'next':'SENDGANTRY', 'changegripper':'CHANGEGRIP'}, remapping={'gripper':'gripper'})
         smach.StateMachine.add('CHANGEGRIP', GetGripper(gp, rm),  transitions={'gripperon':'SENDGANTRY'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('SENDGANTRY', SendGantry(gp), transitions={'arrived':'CHECKPART'}, remapping={'task':'task'})
+        smach.StateMachine.add('SENDGANTRY', SendGantry(gp, node, ass), transitions={'arrived':'CHECKPART'}, remapping={'task':'task'})
         smach.StateMachine.add('CHECKPART', CheckPart(), transitions={'noParts':'SUBMITASSEMBLY', 'newPart':'FINDPART'}, remapping={'task':'task', 'part':'part'})
         smach.StateMachine.add('SUBMITASSEMBLY', SubmitAssemblyShipment(node), transitions={'success':'finished'}, remapping={'task':'task'})
-        smach.StateMachine.add('FINDPART', FindPartOnTray(), transitions={'found':'GANTRYMOVEPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
-        smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(rm, sen, node), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part', 'task':'task'})
+        smach.StateMachine.add('FINDPART', FindPartOnTray(act, node, sen), transitions={'found':'GANTRYMOVEPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
+        smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(rm, sen, node, ass, gp, act), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part', 'task':'task'})
 
     ksm = smach.StateMachine(outcomes=['finished'], input_keys=['kittingtask', 'faultybinposition'])
     with ksm:
@@ -76,8 +78,9 @@ if __name__ == '__main__':
     with sm:
 
         smach.StateMachine.add('START', StartCompetition(node), transitions={'success':'CHECKORDERS'}, remapping={'interrupted':'interrupted'})
-        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'end', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order', 'interrupted':'interrupted'})
+        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'ENDCOMP', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order', 'interrupted':'interrupted'})
         smach.StateMachine.add('CHECKTASKS', CheckTasks(), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
+        smach.StateMachine.add('ENDCOMP', EndCompetition(node), transitions={'ended':'end'})
 
         concurent_assembly = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['task', 'kittingtask', 'interrupted'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'ASSEMBLY':'finished'}})
 

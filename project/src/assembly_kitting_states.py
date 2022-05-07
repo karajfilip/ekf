@@ -447,9 +447,9 @@ class WaitConveyorBelt(smach.State):
         self.trackindex = 0
 
     def execute(self, ud):
-        ud.trackindex in self.trackindex:
-        if ud.traydone:
-            return 'finish'
+        for ud.trackindex in self.trackindex:
+            if ud.traydone:
+                return 'finish'
         self.trackindex += 1
         
         return 'ontrack'
