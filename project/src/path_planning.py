@@ -4,6 +4,7 @@ from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 from control_msgs.msg import JointTrajectoryControllerState
 from geometry_msgs.msg import Pose
+import math
 
 
 # TOCKE NA KOJE TREBA DOC
@@ -40,15 +41,15 @@ class GantryPlanner:
 
         self.stations = [ [],
                          [  -3.7 ,  1   , -3.4   ],
-                         [  -3.9 ,  2.44 ,  3.2  ],
+                         [  -3.9 ,  2.44,  3.2   ],
                          [  -8.7 ,  1   , -3.4   ],
-                         [  -8.8 ,  2.44 ,  3.2  ],
-                         [  -1.75,  0   ,  -6.30 ],
-                         [  -3.95,  0   ,  -4.9  ],
-                         [  -0.71, -2.35,  3.4   ],
-                         [  -0.71, -0.8,   2.38  ],
-                         [  -0.71, -2.35,  -2.38 ],
-                         [  -0.71, -0.8,   -3.4  ],
+                         [  -8.8 ,  2.44,  3.2   ],
+                         [  -1.75,  0   , -6.30  ],
+                         [  -4.15,  0   , -5.0   ],
+                         [    0.35  ,math.pi, 3.8],
+                         [    0.35  ,math.pi, 0.4],
+                         [    0  ,  0   , -0.40  ],
+                         [    0  ,  0   , -4.0   ],
                          [  -1.46,  0   ,   0    ]]
 
         # TODO: Definiraj subscribere za breakbeam kamere koje detetiraju ljude
@@ -100,11 +101,18 @@ class GantryPlanner:
 
         
         # -- Automatski dodaj jedan point koji ce robota pomaknuti iza od trenutnog stationa, isto napravi na kraju kad se priblizava stationu
-        if self.current_station != 11 and self.current_station not in [5,6]:
-            if self.current_station not in [7,8,9,10]:
+        if self.current_station != 11:
+            if self.current_station not in [5,6,7,8,9,10]:
                 point_move_away = JointTrajectoryPoint()
                 point_move_away.positions = self.stations[self.current_station]
                 point_move_away.positions[0] += 0.5
+                point_move_away.time_from_start = used_time + rospy.Duration(0.8)
+                used_time = point_move_away.time_from_start
+                move_to.points.append(point_move_away)
+            elif self.current_station in [5,6]:
+                point_move_away = JointTrajectoryPoint()
+                point_move_away.positions = self.stations[self.current_station]
+                point_move_away.positions[2] += 1.5
                 point_move_away.time_from_start = used_time + rospy.Duration(0.8)
                 used_time = point_move_away.time_from_start
                 move_to.points.append(point_move_away)
@@ -179,9 +187,13 @@ class GantryPlanner:
             else:
                 point_move_close = JointTrajectoryPoint()
                 point_move_close.positions = list(points.positions)
-                point_move_close.positions[0] = point_move_close.positions[0] - 1.5
+                point_move_close.positions[0] = point_move_close.positions[0] - 0.5
+                if station_number in [10,9]:
+                    point_move_close.positions[2] = point_move_close.positions[2] + 0.8
+                else:
+                    point_move_close.positions[2] = point_move_close.positions[2] - 0.6
                 point_move_close.time_from_start = points.time_from_start
-                points.time_from_start = used_time + rospy.Duration(1.0)
+                points.time_from_start = used_time + rospy.Duration(2.5)
                 move_to.points.append(point_move_close)
 
 
@@ -193,7 +205,6 @@ class GantryPlanner:
         self.wanted_pos = points.positions
         self.current_station = station_number
         self.trajectory_publisher.publish(move_to)
-        print(move_to)
         self.checking_position = True
         return
 
@@ -211,7 +222,7 @@ class GantryPlanner:
                 if abs(y - roby) < tolerance:
                     if abs(z - robz) < tolerance:
                         self.checking_position = False
-                        print("ARRIVED")
+                        print("PATH_PLANNER: ARRIVED")
         return
 
     def check_position(self):

@@ -64,17 +64,25 @@ class RobotMover:
         return
 
     def cancel_gantry(self):
-        print("ENDED")
-        trajectory = JointTrajectory()
-        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        trajectory.header.stamp = rospy.Time.now()
-        self.kitting_cmd.publish(trajectory)
-        self.kitting_cmd.publish(trajectory)
-        self.kitting_cmd.publish(trajectory)
+        print("GANTRY_MOVER:ENDED")
+        trajectory_arm = JointTrajectory()
+        trajectory_arm.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
+        trajectory_arm.header.stamp = rospy.Time.now()
+
+        trajectory_torso = JointTrajectory()
+        trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
+        trajectory_torso.header.stamp = rospy.Time.now()
+        
+        self.gantry_torso_cmd.publish(trajectory_torso)
+        self.gantry_cmd.publish(trajectory_arm)
+        self.gantry_torso_cmd.publish(trajectory_torso)
+        self.gantry_cmd.publish(trajectory_arm)
+        self.gantry_torso_cmd.publish(trajectory_torso)
+        self.gantry_cmd.publish(trajectory_arm)
         return
 
     def cancel_kitting(self):
-        print("ENDED")
+        print("KITTING_MOVER:ENDED")
         trajectory = JointTrajectory()
         trajectory.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
         trajectory.header.stamp = rospy.Time.now()
@@ -126,6 +134,100 @@ class RobotMover:
 
             return False
 
+    # Dodavanje tocaka u trajektoriju
+    # NE RACUNAJ TOCKE RUCNO JER CES NESTO ZEZNUT
+    # KORISTI JOINTOVE SAMO IZ OVE FUNKCIJE, NE MIJENJAJ POREDAK!!!
+    # used time - vrijeme potroseno do sad
+    # point_time - vrijeme da se trenutni pokret izvrsi
+    # VRACA: point_arm, point_torso (samo gantry), used_time, joint_point(za prosljedivati prev_joint gantrya)
+    def add_point_kitting(self, position, used_time=0, point_time=1, prev_joints=None):
+        joint_point = self.inverse_kin.inverse_kinematics_kitting_arm(position, prev_joints)
+        joint_point = [joint_point[3], joint_point[0], joint_point[2], joint_point[1], joint_point[4], joint_point[5], joint_point[6]]
+        
+        point = JointTrajectoryPoint()
+        point.positions = joint_point
+        point.time_from_start = rospy.Duration(used_time + point_time)
+        return point, used_time + point_time
+
+    def add_point_gantry(self, position, joints=0, used_time=0, point_time=1, prev_joints=None):
+        joint_point = self.inverse_kin.inverse_kinematics_gantry(position, target_group=joints, start_joints=prev_joints)
+        arm_joints = joint_point[3:-1]
+        torso_joints = joint_point[0:3]
+        del arm_joints[-1]
+        del arm_joints[-1]
+
+        point_arm = JointTrajectoryPoint()
+        point_arm.positions = arm_joints
+        point_arm.time_from_start = rospy.Duration(used_time + point_time)
+
+        point_torso = JointTrajectoryPoint()
+        point_torso.positions = torso_joints
+        point_torso.time_from_start = rospy.Duration(used_time + point_time)
+
+        return point_arm, point_torso, used_time + point_time, joint_point
+
+    # Radi trajektoriju za robote
+    # Gantry -- ako ne zelis micat torso, ne salji nista u points_torso
+    def make_traj_kitting(self, points):
+        trajectory = JointTrajectory()
+        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        trajectory.header.stamp = rospy.Time.now()
+
+        for point in points:
+            trajectory.points.append(point)
+
+        return trajectory
+
+    def make_traj_gantry(self, points_arm, points_torso = None):
+        trajectory_arm = JointTrajectory()
+        trajectory_arm.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
+        trajectory_arm.header.stamp = rospy.Time.now()
+
+        trajectory_torso = JointTrajectory()
+        trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
+        trajectory_torso.header.stamp = rospy.Time.now()
+
+        for point in points_arm:
+            trajectory_arm.points.append(point)
+
+        if points_torso is None:
+            trajectory_torso = None
+        else:
+            for point in points_torso:
+                trajectory_torso.points.append(point)
+
+        return trajectory_arm, trajectory_torso
+
+    # Dohvaca trenutnu poziciju robota iz direktne kinematike
+    # NE KORISTITI SAMO DIREKTNU JER POSTOJI SANSA DA CE FAILAT PA SE MORA POZVATI VISE PUTA DOK NE PRORADI
+    def get_pos_kitting(self):
+        pos = []
+        to_break = 10
+        while len(pos) == 0 or pos==[0.0, 0.0, 0.0]:
+            try:
+                pos = list(self.inverse_kin.direct_kinematics_kitting_arm())
+            except:
+                to_break -= 1
+                if to_break == 0:
+                    break
+                continue
+
+        return pos
+
+    def get_pos_gantry(self):
+        pos = []
+        to_break = 10
+        while len(pos) == 0 or pos==[0.0, 0.0, 0.0]:
+            try:
+                pos = list(self.inverse_kin.direct_kinematics_gantry_arm())
+            except:
+                to_break -= 1
+                if to_break == 0:
+                    break
+                continue
+        
+        return pos
+
     # Pickup i place funkcije za gantry i kitting.
     # Pickup pomice robota pazljivo na poziciju, te zatim prima predmet
     # Place radi isto, samo spusta objekt na neku lokaciju. Baca warning ako robot nema nista gripanog.
@@ -136,118 +238,100 @@ class RobotMover:
         # 2) Pomakni robota 0.5 iznad objekta
         # 3) Aktiviraj gripper, te pomici robota ispod dok ga ne uhvatis
 
+        print("KITTING_MOVER: Pickup from:" + str(position))
         self.kitting_pickedup = False
-        inv_start = list(self.inverse_kin.kitting_joint_state.position)
-        inv_start[2] = inv_start[2] + 0.3
-        del inv_start[4]
+        used_time = 0
 
-        end_position = position
-        end_position[2] += 0.3
+        current_pos = self.get_pos_kitting()
+        current_pos[2] += 0.3
+        current_pos.append(position[3])
+        current_pos.append(position[4])
+        current_pos.append(position[5])
+        
+        above_end = position
+        above_end[2] = above_end[2] + 0.2
 
-        inv_end = self.inverse_kin.inverse_kinematics_kitting_arm(end_position, inv_start)
-        inv_end = [inv_end[3], inv_end[0], inv_end[2], inv_end[1], inv_end[4], inv_end[5], inv_end[6], inv_end[7]]
+        p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=0.7, prev_joints=None)
+        if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
+            joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
+            
+            p3 = JointTrajectoryPoint()
+            p3.positions = joint_point
+            p3.time_from_start = rospy.Duration(used_time + 1.5)
+            used_time = used_time + 1.5
 
-        # Napravi trajektoriju
-        trajectory = JointTrajectory()
-
-        # Napravi pointove
-        point1 = JointTrajectoryPoint()
-        point1.positions = inv_start
-        point1.time_from_start = rospy.Duration(0.6)
-        trajectory.points.append(point1)
-
-        point2 = JointTrajectoryPoint()
-        point2.positions = inv_end
-        point2.time_from_start = rospy.Duration(1.6)
-        trajectory.points.append(point2)
-
-        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        trajectory.header.stamp = rospy.Time.now()
-
-        # Reci robotu da dode iznad objekta
+            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p3.positions)
+            trajectory = self.make_traj_kitting([p1, p3, p2])
+        else:
+            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
+            trajectory = self.make_traj_kitting([p1, p2])
         self.kitting_cmd.publish(trajectory)
 
-        print("sent first")
-        while not self.check_kitting_position(end_position):
-            rospy.sleep(0.2)
-        print("calc second")
-
+        print("KITTING_MOVER: Sent first")
+        while not self.check_kitting_position(above_end):
+            rospy.sleep(0.1)
+        print("KITTING_MOVER: Calc second")
 
         # Posalji robota na pickup
+        used_time = 0
         self.inverse_kin.activate_kitting_gripper()
-        trajectory2 = JointTrajectory()
 
-        end_position[2] -= 0.1
-        inv_pickup = self.inverse_kin.inverse_kinematics_kitting_arm(end_position)
-        inv_pickup = [inv_pickup[3], inv_pickup[0], inv_pickup[2], inv_pickup[1], inv_pickup[4], inv_pickup[5], inv_pickup[6], inv_pickup[7]]
-        point3 = JointTrajectoryPoint()
-        point3.positions = inv_pickup
-        point3.time_from_start = rospy.Duration(1)
-        trajectory2.points.append(point3)
+        close_to_end = above_end
+        close_to_end[2] = close_to_end[2] - 0.1
+        p3, used_time = self.add_point_kitting(close_to_end, used_time=used_time, point_time=1, prev_joints=None)
 
 
-        end_position[2] -= 0.2
-        inv_pickup = self.inverse_kin.inverse_kinematics_kitting_arm(end_position)
-        inv_pickup = [inv_pickup[3], inv_pickup[0], inv_pickup[2], inv_pickup[1], inv_pickup[4], inv_pickup[5], inv_pickup[6], inv_pickup[7]]
-        point4 = JointTrajectoryPoint()
-        point4.positions = inv_pickup
-        point4.time_from_start = rospy.Duration(7)
-        trajectory2.points.append(point4)
+        end_pos = close_to_end
+        end_pos[2] = close_to_end[2] - 0.15
+        p4, used_time = self.add_point_kitting(end_pos, used_time=used_time, point_time=3, prev_joints=p3.positions)
+        trajectory2 = self.make_traj_kitting([p3, p4])
 
-        trajectory2.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        trajectory2.header.stamp = rospy.Time.now()
         self.kitting_cmd.publish(trajectory2)
-        print("sent second")
+        print("KITTING_MOVER: Sent second")
         self.watching_kitting = True
-
         return  
 
     def place_kitting(self, position):
+        print("KITTING_MOVER: Placing at" + str(position))
         # Isti princip kao i pickup, samo baci predment na kraju
-        inv_start = list(self.inverse_kin.direct_kinematics_kitting_arm())
-        inv_start[2] = inv_start[2] + 0.3
-        inv_start = self.inverse_kin.inverse_kinematics_kitting(inv_start)
-        inv_start = [inv_start[3], inv_start[0], inv_start[2], inv_start[1], inv_start[4], inv_start[5], inv_start[6], inv_start[7]]
+        used_time = 0
 
-        end_position = position
-        end_position[2] += 0.3
+        current_pos = self.get_pos_kitting()
+        current_pos[2] += 0.25
+        current_pos.append(position[3])
+        current_pos.append(position[4])
+        current_pos.append(position[5])
 
-        inv_end = self.inverse_kin.inverse_kinematics_kitting_arm(end_position, inv_start)
-        inv_end = [inv_end[3], inv_end[0], inv_end[2], inv_end[1], inv_end[4], inv_end[5], inv_end[6], inv_end[7]]
+        above_end = position
+        above_end[2] = above_end[2] + 0.3
 
-        # Napravi trajektoriju
-        trajectory = JointTrajectory()
+        end_pos = above_end
+        end_pos[2] = end_pos[2] - 0.15
 
-        # Napravi pointove
-        point1 = JointTrajectoryPoint()
-        point1.positions = inv_start
-        point1.time_from_start = rospy.Duration(0.6)
-        trajectory.points.append(point1)
-
-        point2 = JointTrajectoryPoint()
-        point2.positions = inv_end
-        point2.time_from_start = rospy.Duration(1.6)
-        trajectory.points.append(point2)
-
-        end_position[2] -= 0.22
-        inv_pickup = self.inverse_kin.inverse_kinematics_kitting_arm(end_position)
-        inv_pickup = [inv_pickup[3], inv_pickup[0], inv_pickup[2], inv_pickup[1], inv_pickup[4], inv_pickup[5], inv_pickup[6], inv_pickup[7]]
-        point3 = JointTrajectoryPoint()
-        point3.positions = inv_pickup
-        point3.time_from_start = rospy.Duration(3)
-        trajectory.points.append(point3)
-
-
-        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        trajectory.header.stamp = rospy.Time.now()
+        p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=0.5, prev_joints=None)
+        if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
+            joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
+            
+            p4 = JointTrajectoryPoint()
+            p4.positions = joint_point
+            p4.time_from_start = rospy.Duration(used_time + 1.5)
+            used_time = used_time + 1.5
+        
+            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p4.positions)
+            p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
+            trajectory = self.make_traj_kitting([p1, p4, p2, p3])   
+        else:
+            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
+            p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
+            trajectory = self.make_traj_kitting([p1, p2, p3])
 
         self.kitting_cmd.publish(trajectory)
-        print("Sent trajectory")
 
-        while not self.check_kitting_position(end_position):
+        print("KITTING_MOVER: Sent trajectory")
+        while not self.check_kitting_position(end_pos):
             rospy.sleep(0.2)
         self.inverse_kin.deactivate_kitting_gripper()
-        print("Let go")
+        print("KITTING_MOVER: Let go")
         return
 
     # Gantry ima dodatnu varijablu joints, koja determinira koji dio gantry se treba pomaknuti. Za micanje samo baze koristi path_planner.py!!!
@@ -256,230 +340,137 @@ class RobotMover:
     # Liftup odreduje treba li dici ruku prije nego se krene
     # 0 - Nemoj dici ruku
     # 1 - Digni ruku prije bilo cega drugog
-    def pickup_gantry(self, position, joints=0, liftup=0):
+    # Tray pickup - dizem li tray? 0 - ne
+    def pickup_gantry(self, position, joints=0, liftup=0, tray_pickup = 0):
+        print("GANTRY_MOVER: Pickup from: " + str(position))
         self.gantry_pickedup = False
-        inv_start = self.inverse_kin.direct_kinematics_gantry_arm()
-        print ("START:" + str(inv_start))
-        inv_start[2] = inv_start[2] + 0.1
-        inv_start.append(position[3])
-        inv_start.append(position[4])
-        inv_start.append(position[5])
-        inv_start = self.inverse_kin.inverse_kinematics_gantry(inv_start, joints)
-        start_position_arm = inv_start[3:-1]
-        start_position_torso = inv_start[0:3]
-        print("1:" + str(inv_start))
-        
-        end_position = position
-        end_position[2] += 0.3
-        inv_end = self.inverse_kin.inverse_kinematics_gantry(end_position, joints, inv_start)
-        end_position_arm = inv_end[3:-1]
-        end_position_torso = inv_end[0:3]
-        print("2:" + str(end_position))
-
-        # Napravi trajektoriju
-        trajectory_arm = JointTrajectory()
-        trajectory_torso = JointTrajectory()
+        used_time = 0
 
 
-        # Napravi pointove
+        above_end = position
+        above_end[2] = above_end[2] + 0.3
+
+        if liftup == 1:
+            print("lift1")
+            current_pos = self.get_pos_gantry()
+            current_pos[2] = current_pos[2] + 0.3
+            current_pos.append(position[3])
+            current_pos.append(position[4])
+            current_pos.append(position[5])
+            pa1, pt1, used_time, p1f = self.add_point_gantry(current_pos, joints, used_time, point_time=0.5, prev_joints=None)
+            pa2, pt2, used_time, p2f = self.add_point_gantry(above_end, joints, used_time, point_time=1.5, prev_joints=p1f)
+        elif liftup == 0:
+            print("lift0")
+            used_time -= 0.5
+            pa2, pt2, used_time, p2f = self.add_point_gantry(above_end, joints, used_time, point_time=1.5, prev_joints=None)
+
         if joints == 0:
-            if liftup == 1:
-                point_arm = JointTrajectoryPoint()
-                point_arm.positions = start_position_arm
-                point_arm.time_from_start = rospy.Duration(1)
-                trajectory_arm.points.append(point_arm)
-
-                point_torso = JointTrajectoryPoint()
-                point_torso.positions = start_position_torso
-                point_torso.time_from_start = rospy.Duration(1)
-                trajectory_torso.points.append(point_torso)
-
-            point_arm = JointTrajectoryPoint()
-            point_arm.positions = end_position_arm
-            point_arm.time_from_start = rospy.Duration(1.5)
-            trajectory_arm.points.append(point_arm)
-
-            point_torso = JointTrajectoryPoint()
-            point_torso.positions = end_position_torso
-            point_torso.time_from_start = rospy.Duration(1.5)
-            trajectory_torso.points.append(point_torso)
+            if liftup == 0:
+                ta, tt = self.make_traj_gantry([pa2], [pt2])
+            elif liftup == 1:
+                ta, tt = self.make_traj_gantry([pa1, pa2], [pt1, pt2])
         elif joints == 1:
-            if liftup == 1:
-                point_arm = JointTrajectoryPoint()
-                point_arm.positions = start_position_arm
-                point_arm.time_from_start = rospy.Duration(1)
-                trajectory_arm.points.append(point_arm)
-
-            point_arm = JointTrajectoryPoint()
-            point_arm.positions = end_position_arm
-            point_arm.time_from_start = rospy.Duration(1.5)
-            trajectory_arm.points.append(point_arm)
-
-
-        trajectory_arm.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
-        trajectory_arm.header.stamp = rospy.Time.now()
-        trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
-        trajectory_torso.header.stamp = rospy.Time.now()
+            if liftup == 0:
+                ta, tt = self.make_traj_gantry([pa2])
+            elif liftup == 1:
+                ta, tt = self.make_traj_gantry([pa1, pa2])
 
         # Reci robotu da dode iznad objekta
         if joints == 0:
-            self.gantry_torso_cmd.publish(trajectory_torso)
-        self.gantry_cmd.publish(trajectory_arm)
-        print("sent first")
+            self.gantry_torso_cmd.publish(tt)
+        self.gantry_cmd.publish(ta)
+        print("GANTRY_MOVER: Sent first")
 
-        while not self.check_gantry_position(end_position):
-            rospy.sleep(0.2)
-        print("calc second")
-
+        while not self.check_gantry_position(above_end):
+            rospy.sleep(0.1)
+        print("GANTRY_MOVER: Calc second")
 
         # Posalji robota na pickup
         self.inverse_kin.activate_gantry_gripper()
-        trajectory_arm2 = JointTrajectory()
-        trajectory_torso2 = JointTrajectory()
+        used_time = 0
 
-        end_position[2] -= 0.1
-        print("3:" + str(end_position))
-        inv_pickup = self.inverse_kin.inverse_kinematics_gantry(end_position, joints)
-        end_position_arm1   = inv_pickup[3:-1]
-        end_position_torso1 = inv_pickup[0:3]
+        if tray_pickup:
+            above_end[2] -= 0.23
+            pa3, pt3, used_time, p3f = self.add_point_gantry(above_end, joints, used_time, point_time=0.5, prev_joints=None)
+            above_end[2] -= 0.07
+            pa4, pt4, used_time, p4f = self.add_point_gantry(above_end, joints, used_time, point_time=3, prev_joints=p3f)
 
-        point_arm2 = JointTrajectoryPoint()
-        point_arm2.positions = end_position_arm1
-        point_arm2.time_from_start = rospy.Duration(1)
-        trajectory_arm2.points.append(point_arm2)
+        else:
+            above_end[2] -= 0.15
+            pa3, pt3, used_time, p3f = self.add_point_gantry(above_end, joints, used_time, point_time=0.5, prev_joints=None)
+            above_end[2] -= 0.1
+            pa4, pt4, used_time, p4f = self.add_point_gantry(above_end, joints, used_time, point_time=3, prev_joints=p3f)
 
-        if joints == 0:
-            point_torso2 = JointTrajectoryPoint()
-            point_torso2.positions = end_position_torso1
-            point_torso2.time_from_start = rospy.Duration(1)
-            trajectory_torso2.points.append(point_torso2)
-
-        end_position[2] -= 0.2
-        print("4:" + str(end_position))
-        inv_pickup = self.inverse_kin.inverse_kinematics_gantry(end_position, joints)
-        end_position_arm1   = inv_pickup[3:-1]
-        end_position_torso1 = inv_pickup[0:3]
-
-        point_arm2 = JointTrajectoryPoint()
-        point_arm2.positions = end_position_arm1
-        point_arm2.time_from_start = rospy.Duration(7)
-        trajectory_arm2.points.append(point_arm2)
 
         if joints == 0:
-            point_torso2 = JointTrajectoryPoint()
-            point_torso2.positions = end_position_torso1
-            point_torso2.time_from_start = rospy.Duration(7)
-            trajectory_torso2.points.append(point_torso2)
-
-        trajectory_arm2.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
-        trajectory_arm2.header.stamp = rospy.Time.now()
-        trajectory_torso2.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
-        trajectory_torso2.header.stamp = rospy.Time.now()
+            ta2, tt2 = self.make_traj_gantry([pa3, pa4], [pt3, pt4])
+        elif joints == 1:
+            ta2, tt2 = self.make_traj_gantry([pa3, pa4])
 
         if joints == 0:
-            self.gantry_torso_cmd.publish(trajectory_torso2)
-        self.gantry_cmd.publish(trajectory_arm2)
+            self.gantry_torso_cmd.publish(tt2)
+        self.gantry_cmd.publish(ta2)
 
-        print("sent second")
+        print("GANTRY_MOVER: Sent second")
         self.watching_gantry = True
 
         return  
 
-    def place_gantry(self, position, joints=0):
-        inv_start = self.inverse_kin.direct_kinematics_gantry_arm()
-        inv_start[2] = inv_start[2] + 0.3
-        inv_start.append(position[3])
-        inv_start.append(position[4])
-        inv_start.append(position[5])
-        inv_start = self.inverse_kin.inverse_kinematics_gantry(inv_start, joints)
-        del inv_start[-2]
-        del inv_start[-1]
-        start_position_arm = inv_start[3:-1]
-        start_position_torso = inv_start[0:3]
-
-        end_position = position
-        end_position[2] += 0.3
-        inv_end = self.inverse_kin.inverse_kinematics_gantry(end_position, joints, inv_start)
-        del inv_end[-2]
-        del inv_end[-1]
-        end_position_arm = inv_end[3:-1]
-        end_position_torso = inv_end[0:3]
-
-        end_position[2] -= 0.2
-        inv_pickup = self.inverse_kin.inverse_kinematics_gantry(end_position, joints, inv_end)
-        del inv_pickup[-2]
-        del inv_pickup[-1]
-        place_position_arm = inv_pickup[3:-1]
-        place_position_torso = inv_pickup[0:3]
-
-        # Napravi trajektoriju
-        trajectory_arm = JointTrajectory()
-        trajectory_torso = JointTrajectory()
+    def place_gantry(self, position, joints=0, liftup=1):
+        print("GANTRY_MOVER: Placing at: " + str(position))
+        self.gantry_pickedup = False
+        used_time = 0
 
 
-        # Napravi pointove
+        above_end = position
+        above_end[2] = above_end[2] + 0.3
+
+        if liftup == 1:
+            print("lift1")
+            current_pos = self.get_pos_gantry()
+            current_pos[2] = current_pos[2] + 0.3
+            current_pos.append(position[3])
+            current_pos.append(position[4])
+            current_pos.append(position[5])
+            pa1, pt1, used_time, p1f = self.add_point_gantry(current_pos, joints, used_time, point_time=0.5, prev_joints=None)
+            pa2, pt2, used_time, p2f = self.add_point_gantry(above_end, joints, used_time, point_time=1.5, prev_joints=p1f)
+        else:
+            print("lift0")
+            used_time -= 0.5
+            pa2, pt2, used_time, p2f = self.add_point_gantry(above_end, joints, used_time, point_time=1.5, prev_joints=None)
+
+
+        above_end[2] = above_end[2] - 0.15
+        pa3, pt3, used_time, p3f = self.add_point_gantry(above_end, joints, used_time, point_time=1.5, prev_joints=p2f)
+
         if joints == 0:
-            point_torso = JointTrajectoryPoint()
-            point_torso.positions = start_position_torso
-            point_torso.time_from_start = rospy.Duration(1)
-            trajectory_torso.points.append(point_torso)
-
-            point_torso = JointTrajectoryPoint()
-            point_torso.positions = end_position_torso
-            point_torso.time_from_start = rospy.Duration(2.5)
-            trajectory_torso.points.append(point_torso)
-
-            point_torso = JointTrajectoryPoint()
-            point_torso.positions = place_position_torso
-            point_torso.time_from_start = rospy.Duration(3.5)
-            trajectory_torso.points.append(point_torso)
-
-        point_arm = JointTrajectoryPoint()
-        point_arm.positions = start_position_arm
-        point_arm.time_from_start = rospy.Duration(1)
-        trajectory_arm.points.append(point_arm)
-
-        point_arm = JointTrajectoryPoint()
-        point_arm.positions = end_position_arm
-        point_arm.time_from_start = rospy.Duration(2.5)
-        trajectory_arm.points.append(point_arm)
-
-        point_arm = JointTrajectoryPoint()
-        point_arm.positions = place_position_arm
-        point_arm.time_from_start = rospy.Duration(3.5)
-        trajectory_arm.points.append(point_arm)
-
-
-        trajectory_arm.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
-        trajectory_arm.header.stamp = rospy.Time.now()
-        trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
-        trajectory_torso.header.stamp = rospy.Time.now()
-
-        print("TORSO TRAJ")
-        print(trajectory_torso)
-        print()
-        print()
-        print("ARM TRAJ")
-        print(trajectory_arm)
-
+            if liftup == 0:
+                ta, tt = self.make_traj_gantry([pa2, pa3], [pt2, pt3])
+            elif liftup == 1:
+                ta, tt = self.make_traj_gantry([pa1, pa2, pa3], [pt1, pt2, pt3])
+        elif joints == 1:
+            if liftup == 0:
+                ta, tt = self.make_traj_gantry([pa2, pa3])
+            elif liftup == 1:
+                ta, tt = self.make_traj_gantry([pa1, pa2, pa3])
 
         # Reci robotu da dode iznad objekta
         if joints == 0:
-            self.gantry_torso_cmd.publish(trajectory_torso)
-        self.gantry_cmd.publish(trajectory_arm)
-        print("sent first")
+            self.gantry_torso_cmd.publish(tt)
+        self.gantry_cmd.publish(ta)
+        print("GANTRY_MOVER: Sent first")
 
 
-        while not self.check_gantry_position(end_position):
-            print("trying to reach end position")
-            rospy.sleep(0.2)
+        while not self.check_gantry_position(above_end):
+            #print("trying to reach end position")
+            rospy.sleep(0.1)
         self.inverse_kin.deactivate_gantry_gripper()
-        print("Let go")
+        print("GANTRY_MOVER: Let go")
         return
 
     # Funkcije koje direktno micu robota na neku poziciju. Ne uzimaju objekt niti pokusavaju raditi ikakav obstacle avoidance. Ne koristiti osim za priblizno pozicioniranje
     def move_directly_kitting(self, position):
-        rospy.sleep(0.5)
+        print("KITTING_MOVER: Moving to: " + str(position))
         inv_position = self.inverse_kin.inverse_kinematics_kitting_arm(position)
         inv_position = [inv_position[3], inv_position[0], inv_position[2], inv_position[1], inv_position[4], inv_position[5], inv_position[6], inv_position[7]]
         dir_pos = self.inverse_kin.direct_kinematics_kitting_arm()
@@ -496,61 +487,46 @@ class RobotMover:
         trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         trajectory.header.stamp = rospy.Time.now()
         self.kitting_cmd.publish(trajectory)
-        print("sent")
+        print("KITTING_MOVER: Sent")
         return
 
     def move_directly_gantry(self, position, joints = 0):
-        rospy.sleep(0.5)
-        inv_position = self.inverse_kin.inverse_kinematics_gantry(position, joints)
-        inv_position_arm = inv_position[3:-1]
-        inv_position_torso = inv_position[0:3]
-
-        trajectory_arm = JointTrajectory()
-        trajectory_torso = JointTrajectory()
-
-        # Napravi point
-        point_arm = JointTrajectoryPoint()
-        point_arm.positions = inv_position_arm
-        point_arm.time_from_start = rospy.Duration(1.5)
-        trajectory_arm.points.append(point_arm)
-
-
-        point_torso = JointTrajectoryPoint()
-        point_torso.positions = inv_position_torso
-        point_torso.time_from_start = rospy.Duration(1.5)
-        trajectory_torso.points.append(point_torso)
-
-        # Ispuni trajectory
-        trajectory_arm.joint_names = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
-        trajectory_arm.header.stamp = rospy.Time.now()
-
-        trajectory_torso.joint_names = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint"]
-        trajectory_torso.header.stamp = rospy.Time.now()
-
+        print("GANTRY_MOVER: Moving to: " + str(position))
+        pa1, pt1, used_time, p1f = self.add_point_gantry(position, joints, used_time=0, point_time=2, prev_joints = None)
+        
         if joints == 0:
-            self.gantry_torso_cmd.publish(trajectory_torso)
-        self.gantry_cmd.publish(trajectory_arm)
-        print("sent")
+            ta, tt = self.make_traj_gantry([pa1], [pt1])
+        elif joints == 1:
+            ta, tt = self.make_traj_gantry([pa1])
+        if joints == 0:
+            self.gantry_torso_cmd.publish(tt)
+        self.gantry_cmd.publish(ta)
+        print("GANTRY_MOVER: Sent")
         return
 
     # Funkcija za pokupljavanje sa trake pomocu kitting robota. Pozovi i on ide na predmet odredenog indexa (default 0)
     def pickup_from_track(self, pose_array_i=0):
         rospy.sleep(0.2)
+        while not self.track_poses.poses:
+            rospy.sleep(0.01)
         current_pose = self.track_poses.poses[pose_array_i].position
 
         # 1) Dodi ispred predmeta
-        current_position = [current_pose.x, current_pose.y - 1, current_pose.z + 0.5, 0, math.pi/2, 0]
+        current_position = [current_pose.x + 0.01, current_pose.y - 1, current_pose.z + 0.5, 0, math.pi / 2, 0]
         print(current_position)
         preposition = self.inverse_kin.inverse_kinematics_kitting_arm(current_position)
-        preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4], preposition[5], preposition[6], preposition[7]]
+        print("prepostion" + str(preposition))
+        preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4], preposition[5],
+                       preposition[6], preposition[7]]
 
         trajectory = JointTrajectory()
         point = JointTrajectoryPoint()
         point.positions = preposition
-        point.time_from_start = rospy.Duration(1.5)
+        point.time_from_start = rospy.Duration(0.5)
         trajectory.points.append(point)
 
-        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint",
+                                  "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         trajectory.header.stamp = rospy.Time.now()
         self.kitting_cmd.publish(trajectory)
 
@@ -558,29 +534,64 @@ class RobotMover:
             rospy.sleep(0.05)
         print("got to position")
 
-
         self.inverse_kin.activate_kitting_gripper()
-        self.watching_pickup = True
-        while not self.picked_from_tray:
+        self.watching_kitting = True
+        z_offset = 0.105
+        y_offset = -0.02
+        offset_change = 0
+        while not self.kitting_pickedup:
+            # pump y_offset = -0.02
+            # sensor y_offset = -0.01
+            # regulator y_offset = -0.015
+            # battery y_offset = -0.015
             current_pose = self.track_poses.poses[pose_array_i].position
+            kpos = self.inverse_kin.direct_kinematics_kitting_arm()
 
-            current_position = [current_pose.x, current_pose.y - 0.05, current_pose.z, 0, math.pi/2, 0]
+            current_position = [current_pose.x, current_pose.y - 0.04, current_pose.z + z_offset, 0, math.pi / 2, 0]
+
+            if ((kpos[2] - current_position[2]) < z_offset + 0.02) and (abs(kpos[1] - current_position[1]) < 0.1):
+                offset_change += 1
+                if offset_change > 20:
+                    offset_change = 0
+                    if z_offset == 0.105:
+                        z_offset = 0.1
+                    elif z_offset == 0.1:
+                        z_offset = 0.055
+                        y_offset = -0.015
+                    elif z_offset == 0.055:
+                        z_offset = 0.05
+                        y_offset = -0.01
+                    elif z_offset == 0.05:
+                        z_offset = 0.042
+                        y_offset = -0.015
+            # print("offset=" + str(z_offset))
+
+            diff = math.sqrt((kpos[1] - current_position[1]) * 2 + (kpos[2] - current_position[2]) * 2)
+            t = diff / 0.4
+            if t > 0.8:
+                t = 0.5
+            # print(diff)
+            # print(t)
+
             preposition = self.inverse_kin.inverse_kinematics_kitting_arm(current_position)
-            preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4], preposition[5], preposition[6], preposition[7]]
+            preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4],
+                           preposition[5], preposition[6], preposition[7]]
             point = JointTrajectoryPoint()
             trajectory = JointTrajectory()
             point.positions = preposition
-            point.time_from_start = rospy.Duration(0.8)
+            point.time_from_start = rospy.Duration(t)
             trajectory.points.append(point)
-            trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+            trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint",
+                                      "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
             trajectory.header.stamp = rospy.Time.now()
             self.kitting_cmd.publish(trajectory)
             rospy.sleep(0.04)
 
-        current_position = [current_pose.x, current_pose.y, current_pose.z + 0.5, 0, math.pi/2, 0]
+        current_position = [current_pose.x, current_pose.y, current_pose.z + 0.5, 0, math.pi / 2, 0]
         print(current_position)
         preposition = self.inverse_kin.inverse_kinematics_kitting_arm(current_position)
-        preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4], preposition[5], preposition[6], preposition[7]]
+        preposition = [preposition[3], preposition[0], preposition[2], preposition[1], preposition[4], preposition[5],
+                       preposition[6], preposition[7]]
 
         trajectory = JointTrajectory()
         point = JointTrajectoryPoint()
@@ -588,10 +599,57 @@ class RobotMover:
         point.time_from_start = rospy.Duration(1.5)
         trajectory.points.append(point)
 
-        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        trajectory.joint_names = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint",
+                                  "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         trajectory.header.stamp = rospy.Time.now()
         self.kitting_cmd.publish(trajectory)
 
-
         return
+
+    # Ako imas fliipani objekt primljen, rjesi ga s ovom funkcijom
+    # Automatski dovede objekt na poziciju, okrene i baci
+    def flip_part_kitting(self, position):
+        print("KITTING_MOVER: Pickup from:" + str(position))
+        self.kitting_pickedup = False
+        used_time = 0
+
+        current_pos = self.get_pos_kitting()
+        current_pos[2] += 0.3
+        current_pos.append(position[3])
+        current_pos.append(position[4])
+        current_pos.append(position[5])
+        
+        above_end = position
+        above_end[2] = above_end[2] + 0.3
+        #above_end[4] = above_end[4] + math.pi/2
+        above_end[3] = above_end[3] - math.pi/2
+
+        p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=2.2, prev_joints=None)
+        p2, used_time = self.add_point_kitting(above_end, used_time, point_time=2.3, prev_joints=p1.positions)
+
+        close_to_end = above_end
+        close_to_end[2] = close_to_end[2] - 0.15
+        p3, used_time = self.add_point_kitting(close_to_end, used_time=used_time, point_time=1.2, prev_joints=None)
+
+
+        trajectory = self.make_traj_kitting([p1, p2, p3])
+        self.kitting_cmd.publish(trajectory)
+
+        while not self.check_kitting_position(close_to_end, tolerance=0.01):
+            rospy.sleep(0.1)
+
+        self.inverse_kin.deactivate_kitting_gripper()
+        print("KITTING_MOVER: Let go (flip)")
+        return  
+  
+
+#rospy.init_node("roboter")
+#rm = RobotMover()
+#rospy.sleep(0.5)
+#rm.pickup_kitting([-1.9988136037121578, -2.6644014024893363, 0.7554965688566175, 0, 1.5707963267948966, 0])
+#while not rm.kitting_pickedup:
+#    rospy.sleep(0.2)
+#rm.place_kitting([-2.265,1.37 , 0.8 , 0 , math.pi/2 , 0])
+#rm.flip_part_kitting([-2, 2.47, 0.779, 0, math.pi/2, 0])
+#rospy.spin()
 

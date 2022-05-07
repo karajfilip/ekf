@@ -180,7 +180,6 @@ class Actuators():
         #   - target: numpy 3x1
         # OUTPUT:
         #   - list 7x1
-        print("usao u inverz")
 
         quaternion_ang = self.euler_to_quaternion(target[3], target[4], target[5])
 
@@ -196,13 +195,14 @@ class Actuators():
         #print("TargetPose: ")
         #print(targetPose)
 
+        print(start_joints)
         if start_joints is None:
             robotTemp = RobotState()
             robotTemp.joint_state.name = self.kitting_joint_state.name
             robotTemp.joint_state.position = self.kitting_joint_state.position
         else:
             robotTemp = RobotState()
-            robotTemp.joint_state.name = self.kitting_joint_state.name
+            robotTemp.joint_state.name = ["elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
             robotTemp.joint_state.position = start_joints
         #print("RobotTemp: ")
         #print(robotTemp)
@@ -221,12 +221,14 @@ class Actuators():
         
         try:
             resp = compute_ik(service_request)
-            #rospy.loginfo(resp)
-            print("gotov inverz")
+            if len(resp.solution.joint_state.position) == 0:
+                resp = compute_ik(service_request)
+                if len(resp.solution.joint_state.position) == 0:
+                    resp = compute_ik(service_request)
         except rospy.ServiceException as exc:
             print(exc)
-        #print("return:")
-        #print(list(resp.solution.joint_state.position))
+        print("KITTING_MOVER: Inverzna:" + str(list(resp.solution.joint_state.position)))
+        #print("KITTING_MOVER: Inverzna:" + str(list(resp.solution.joint_state.name)))
         return list(resp.solution.joint_state.position)
 
     # Target_group = grupa jointova koja se mice (0=gantry_full, 1=gantry_arm)
@@ -236,7 +238,6 @@ class Actuators():
         #   - target: numpy 3x1
         # OUTPUT:
         #   - list 7x1
-        print("usao u inverz")
 
         quaternion_ang = self.euler_to_quaternion(target[3], target[4], target[5])
 
@@ -252,14 +253,11 @@ class Actuators():
 
         robotTemp = RobotState()
         if start_joints is None:
-            robotTemp.joint_state.position = self.gantry_joint_state.position
-            robotTemp.joint_state.name = self.gantry_joint_state.name
+            robotTemp.joint_state = self.gantry_joint_state
+
         else:
             robotTemp.joint_state.position = start_joints
-            #if target_group == 0:
-            #    robotTemp.joint_state.name = ["gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"#]
-            #elif target_group == 1:
-            robotTemp.joint_state.name = ["small_long_joint", "torso_rail_joint", "torso_base_main_joint", "gantry_arm_shoulder_pan_joint", "gantry_arm_shoulder_lift_joint","gantry_arm_elbow_joint","gantry_arm_wrist_1_joint","gantry_arm_wrist_2_joint","gantry_arm_wrist_3_joint"]
+            robotTemp.joint_state.name = ['small_long_joint', 'torso_rail_joint', 'torso_base_main_joint', 'gantry_arm_shoulder_pan_joint', 'gantry_arm_shoulder_lift_joint', 'gantry_arm_elbow_joint', 'gantry_arm_wrist_1_joint', 'gantry_arm_wrist_2_joint', 'gantry_arm_wrist_3_joint', 'gantry_arm_vacuum_gripper_joint', 'torso_main_torso_tray_joint']
 
         service_request = PositionIKRequest()
         if target_group == 0:
@@ -281,11 +279,10 @@ class Actuators():
         try:
             resp = compute_ik(service_request)
             #rospy.loginfo(resp)
-            print("gotov inverz")
         except rospy.ServiceException as exc:
             print(exc)
-        print("return:")
-        print(list(resp.solution.joint_state.position))
+        print("GANTRY_MOVER: Inverzna: " + str(list(resp.solution.joint_state.position)))
+        #print("GANTRY_MOVER: Inverzna: " + str(list(resp.solution.joint_state.name)))
         return list(resp.solution.joint_state.position)
 
 

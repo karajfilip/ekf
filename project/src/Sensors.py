@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import rospy
 import numpy as np
+import rospy
 import math
 import tf2_ros
 import yaml
@@ -9,15 +9,15 @@ import re
 
 # Break Beam Sensor, Quality Control Sensor and Logical Camera messages
 from nist_gear.msg import Proximity, LogicalCameraImage, Model
+
 from geometry_msgs.msg import Pose, PoseArray
 from std_msgs.msg import Header
+
 
 class Sensors_functions():
 
     def __init__(self):
-        self.p=0
-        #rospy.init_node('sensors_functions', anonymous=True)
-
+        pass
     def tf_transform(self, frame):
         '''
         Get the world pose of object
@@ -29,7 +29,7 @@ class Sensors_functions():
         success = False
 
         # wait for all cameras to be broadcasting
-        while (not success):
+        while(not success):
             try:
                 success = True
                 world_tf = tf_buffer.lookup_transform(
@@ -39,15 +39,15 @@ class Sensors_functions():
                     rospy.Duration(0.1)
                 )
             except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
-                #print(frame, e)
+                print(frame)
                 success = False
                 continue
 
         # remove stale transforms
-        # tf_time = rospy.Time(
-        #     world_tf.header.stamp.secs,
-        #     world_tf.header.stamp.nsecs
-        # )
+        tf_time = rospy.Time(
+            world_tf.header.stamp.secs,
+            world_tf.header.stamp.nsecs
+        )
         # if rospy.Time.now() - tf_time > rospy.Duration(1.0):
         #     continue
 
@@ -56,7 +56,7 @@ class Sensors_functions():
         pose.orientation = world_tf.transform.rotation
         return pose
 
-    def get_object_pose_in_workcell(self):
+    def get_object_pose_in_workcell(self, camera_num="[0-9]"):
         '''
         Get the world pose of each object found by cameras,
         including parts and movable trays
@@ -76,7 +76,7 @@ class Sensors_functions():
             rospy.wait_for_message(topic, LogicalCameraImage)
 
         # e.g., logical_camera_1_assembly_pump_red_1
-        camera_frame_format = r"logical_camera_[0-9]+_(\w+)_[0-9]+_frame"
+        camera_frame_format = r"logical_camera_" + str(camera_num) + "+_(\w+)_[0-9]+_frame"
         all_frames = yaml.safe_load(tf_buffer.all_frames_as_yaml()).keys()
         part_frames = [f for f in all_frames if re.match(camera_frame_format, f)]
 
@@ -90,7 +90,6 @@ class Sensors_functions():
                     rospy.Duration(0.1)
                 )
             except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
-                print(str(e))
                 continue
 
             # remove stale transforms
@@ -116,14 +115,15 @@ class Sensors_subscribers():
         # Data from sensors
         # self.data = {}
         self.breakbeam_detection = {}
+        self.logical_camera_detection = {}
         self.i = 0
         self.track_items_pose = PoseArray()
         self.faulty = [False]*4
 
         # Velocity of track in m/s
-        self.v = 0.2;
+        self.v = 0.2
         # The beggining of the track
-        self.p_start = [-0.573, 4.3, 0.9];
+        self.p_start = [-0.573, 4.3, 0.9]
         # The end of track
         # self.p_end = [p1_x, p1_y, p1_z];
 
@@ -133,7 +133,10 @@ class Sensors_subscribers():
         rospy.Subscriber('/ariac/breakbeam_0_change', Proximity, self.break_beam_callback)
 
         # Logical Camera
-        # rospy.Subscriber('/ariac/IME_LC_SENZORA', LogicalCameraImage, self.logical_camera_callback)
+        rospy.Subscriber('/ariac/logical_camera_1', LogicalCameraImage, self.logical_camera_1_callback)
+        rospy.Subscriber('/ariac/logical_camera_2', LogicalCameraImage, self.logical_camera_2_callback)
+        rospy.Subscriber('/ariac/logical_camera_3', LogicalCameraImage, self.logical_camera_3_callback)
+        rospy.Subscriber('/ariac/logical_camera_4', LogicalCameraImage, self.logical_camera_4_callback)
 
         # Quality Control Sensor
         rospy.Subscriber('/ariac/quality_control_sensor_1', LogicalCameraImage, self.quality_control_sensor_1_callback)
@@ -143,17 +146,22 @@ class Sensors_subscribers():
 
         # PUBLISHERS
         # Position on track
-        self.pub_pose_on_track = rospy.Publisher('ariac/pose_on_track', PoseArray, queue_size=10)
+        self.pub_pose_on_track = rospy.Publisher('ariac/pose_on_track', PoseArray, queue_size=1)
         while not rospy.is_shutdown():
             del self.track_items_pose.poses[:]
             for key, value in self.breakbeam_detection.items():
+                # item_pose = Pose()
+                item_pose = self.position_on_track(value.to_nsec(), rospy.get_rostime().to_nsec())
+                if item_pose.position.y < -4.4:
+                    continue
                 # print(key)
                 self.track_items_pose.header.frame_id = str(key)
-                #	print(self.track_items_pose)
+                #   print(self.track_items_pose)
                 self.track_items_pose.poses.append(
                     self.position_on_track(value.to_nsec(), rospy.get_rostime().to_nsec()))
             self.pub_pose_on_track.publish(self.track_items_pose)
-            rospy.sleep(0.1)
+            print(self.track_items_pose)
+            rospy.sleep(0.01)
 
     ### CALLBACKS ###
     def break_beam_callback(self, msg):
@@ -163,9 +171,25 @@ class Sensors_subscribers():
             self.i += 1
             self.breakbeam_detection.update({self.i: msg.header.stamp})
 
-    # def logical_camera_callback(self, msg):
-    #     ''' Callback function for logical camera
-    #     @param msg, LogicalCameraImage, data logical camera'''
+    def logical_camera_1_callback(self, msg):
+        ''' Callback function for logical camera
+        @param msg, LogicalCameraImage, data logical camera'''
+        self.logical_camera_detection.update({1: msg.models})
+
+    def logical_camera_2_callback(self, msg):
+        ''' Callback function for logical camera
+        @param msg, LogicalCameraImage, data logical camera'''
+        self.logical_camera_detection.update({2: msg.models})
+
+    def logical_camera_3_callback(self, msg):
+        ''' Callback function for logical camera
+        @param msg, LogicalCameraImage, data logical camera'''
+        self.logical_camera_detection.update({3: msg.models})
+
+    def logical_camera_4_callback(self, msg):
+        ''' Callback function for logical camera
+        @param msg, LogicalCameraImage, data logical camera'''
+        self.logical_camera_detection.update({4: msg.models})
 
 
 
@@ -176,7 +200,6 @@ class Sensors_subscribers():
             self.faulty[0] = False
         else:
             self.faulty[0] = True
-        print(self.faulty[0])
 
     def quality_control_sensor_2_callback(self, msg):
         ''' Callback function for quality control sensor
@@ -220,9 +243,11 @@ class Sensors_subscribers():
         # self.pub_pose_on_track.publish(p)
         return p
 
+
+
 if __name__ == '__main__':
     subscribers = Sensors_subscribers()
-    #  functions = Sensors_functions()
-    # objects = functions.get_object_pose_in_workcell()
+    #functions = Sensors_functions()
+    #objects = functions.get_object_pose_in_workcell()
     #  faulty = functions.tf_transform("logical_camera_2_assembly_pump_red_1_frame")
-    #  print(faulty)
+    #print(functions.tf_transform("kit_tray_1"))

@@ -15,6 +15,7 @@ from std_msgs.msg import String
 #from Actuators import Actuators
 #from pick_and_place import RobotMover
 from Sensors import Sensors_functions
+from nist_assembly import AssemblyPart
 
 class process_management():
 
@@ -99,19 +100,33 @@ class process_management():
 
         return parts
 
+    def filipov_process_assembly_shipment(self, assembly_shipment):
+        # Eventually read from order but build dictionary to start
+        parts = []
+        name_str = ""
+        for product in assembly_shipment.products:
+            _, part_type, color = product.type.split("_")
+
+            parts.append(AssemblyPart(part_type, color, product.pose))
+            name_str += (color + "_" + part_type + ", ")
+
+        rospy.loginfo("Received assembly order to deliver " + name_str +
+                      "to assembly station: " + assembly_shipment.station_id)
+
+        return parts
 
     def submit_kitting_shipment(self, agv, assemlby_station, shipment_type):
         """ ROS Service for submit a kitting shipment."""
         rospy.wait_for_service('/ariac/' + agv + '/submit_kitting_shipment')
-        submit_kitting = rospy.ServiceProxy('/ariac/' + agv + '/submit_kitting_shipment', SubmitKittingShipment)(assemlby_station, shipment_type)
+        submit_kitting = rospy.ServiceProxy('/ariac/' + agv + '/submit_kitting_shipment', SubmitKittingShipment)
         
         try:
-            resp = submit_kitting()
+            resp = submit_kitting(assemlby_station, shipment_type)
             rospy.loginfo("Submitting a kitting shipment.")
         except rospy.ServiceException as exc:
             rospy.logerr(str(exc))
     
-    def submit_assembly_shipment(self, station_id, shipment_type):
+    def submit_assembly_shipment(self, station_id):
         """ ROS Service for submit an assembly shipment."""
         rospy.wait_for_service('/ariac/' + station_id + '/submit_assembly_shipment')
         submit_assembly = rospy.ServiceProxy('/ariac/' + station_id + 'submit_assembly_shipment', AssemblyStationSubmitShipment)
@@ -156,7 +171,7 @@ class process_management():
         print("ovdje")
         #position = self.get_position_AGV("agv1")
         #print(position)
-        self.move_AGV("agv1", "as1")
+        #self.move_AGV("agv1", "as1")
         while not self.received_order:
             rospy.loginfo("Waiting for order...")
             pass
@@ -168,8 +183,11 @@ class process_management():
                 #print(var)
             elif order.assembly_shipments:
                 rospy.loginfo("Number of ASSEMBLY shipments to do {0}".format(len(order.assembly_shipments)))
-                
-            
+        
+        rospy.logwarn(self.orders[0].assembly_shipments[0])
+        parts = self.filipov_process_assembly_shipment(self.orders[0].assembly_shipments[0])
+        print(len(parts))
+        rospy.logerr(parts)
         #self.end_competition()
 
 if __name__ == '__main__':
