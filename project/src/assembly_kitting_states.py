@@ -28,7 +28,6 @@ class CheckGripper(smach.State):
         self.act = actuators
 
     def execute(self, ud):
-        print(ud.task.shipment_type)
         gripper = self.act.gripper_type
         if str(gripper) !=  'gripper_part':
             ud.gripper = 'gripper_tray'
@@ -67,7 +66,7 @@ class SubmitAssemblyShipment(smach.State):
         return 'success'
 
 class FindPartOnTray(smach.State):
-    def __init__(self, actuators, processmgmt, sensors, outcomes=['found'], input_keys=['part', 'kittingtask'], output_keys=['partcurrentposition']):
+    def __init__(self, actuators, processmgmt, sensors, outcomes=['found', 'noFound'], input_keys=['part', 'kittingtask'], output_keys=['partcurrentposition']):
         smach.State.__init__(self, outcomes, input_keys, output_keys)
         self.act = actuators
         self.node = processmgmt
@@ -79,15 +78,18 @@ class FindPartOnTray(smach.State):
                 if product.type == ud.part.type:
                     ud.partcurrentposition = product.pose.position
                     return 'found'
+
         else:
             ud.partcurrentposition = Pose().position
-            self.objects = self.sen.get_object_pose_in_workcell(9)
+            self.objects = self.sen.get_object_pose_in_workcell()
             print(self.objects)
+
             for product in self.objects:
                 if product.type == ud.part.type:
                     ud.partcurrentposition = product.pose.position
                     print(product.pose.position)
                     return 'found'
+                
 
             # if self.node.get_position_AGV("agv1") == "as2":
             #     self.node.move_AGV("agv1", "as1")
@@ -162,7 +164,7 @@ class FindPartOnTray(smach.State):
             #     while not self.node.get_position_AGV("agv4") == "as4":
             #         rospy.sleep(0.2)
 
-            return 'found' 
+            return 'noFound' 
 
     
 class GantryMovePart(smach.State):
@@ -199,32 +201,38 @@ class GantryMovePart(smach.State):
         pose_briefase = self.sen.tf_transform(str("briefcase_"+str((ud.task.station_id)[-1])))
         briefcase = 'briefcase_' + ud.task.station_id[-1]
             
-        
         elem=parts[counter]
             
-
-        if(gantry_orientation == "right"):
-            self.ass.orient_gantry(0)
-        else:
-            self.ass.orient_gantry(-3.05)
+        
+        #if(gantry_orientation == "right"):
+        #    self.ass.orient_gantry(0)
+        #else:
+        #    self.ass.orient_gantry(-3.05)
 
         #self.ass.move_gantry_to_agv(ud.task.station_id)
         #print("move_gantry_to_agv")
 
+        
         part_curr_pose = Pose()
         part_curr_pose.position.x = ud.partcurrentposition.x 
         part_curr_pose.position.y = ud.partcurrentposition.y 
         part_curr_pose.position.z = ud.partcurrentposition.z 
-        #print(part_curr_pose)
-        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, 0, pi/2, 0])
+        print(part_curr_pose)
+        self.ass.move_gantry(-10.28, 2.18, -3.05)
+        self.rm.pickup_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z, 0, pi/2, 0]) #,1
         while not self.rm.gantry_pickedup:
             #print("pickup_gantry")
             pass
-        self.rm.move_directly_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z + 0.3, 0, pi/2, 0], 1)
-        rospy.sleep(1.5)
+        self.rm.move_directly_gantry([part_curr_pose.position.x, part_curr_pose.position.y, part_curr_pose.position.z + 0.2, 0, pi/2, 0])
+
+        rospy.sleep(3)
+
+        #self.ass.move_arm_to_home_position()
+        
+        self.ass.move_gantry(-9.49, 3.09, -3.05)
 
         self.ass.move_arm_to_home_position()
-        
+
         #self.ass.move_arm_to_home_position()
         #_ , part_type, color = ud.part.type.split("_")
         #print(part_type)
@@ -244,6 +252,7 @@ class GantryMovePart(smach.State):
         part_pose.position.z = ud.part.pose.position.z + pose_briefase.position.z
         
         self.ass.move_gantry_to_assembly_position(briefcase, elem)
+        #self.ass.move_gantry(-10.85, 3.23, pi/2)
         rospy.logwarn("Moved to assembly position.")
         #print(parttopick)
         #print("jedan print izmedu")
@@ -253,7 +262,7 @@ class GantryMovePart(smach.State):
 
         self.ass.move_arm_to_home_position()
         #self.ass.move_gantry_to_station(ud.task.station_id)
-        
+        #self.ass.orient_gantry(-3.05)
         counter += 1
 
 
@@ -310,7 +319,7 @@ class GetGripper(smach.State):
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
         curr_pose = self.rm.get_pos_gantry()
-        self.rm.move_directly_gantry([curr_pose[0], curr_pose[1] + 0.2, curr_pose[2]+0.3, 0, pi/2, 0], 1)
+        self.rm.move_directly_gantry([curr_pose[0], curr_pose[1]+0.2, curr_pose[2]+0.3, 0, pi/2, 0], 1)
         rospy.sleep(3)  # TODO pozicija i while
 
         self.gp.move('gripperstation')
@@ -355,7 +364,7 @@ class GantryGetTray(smach.State):
         while not self.rm.gantry_pickedup:
             rospy.sleep(0.2)
 
-        if tray.pose.position.x < -6: 
+        if tray.pose.position.x < -6:
             self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
         else:
             self.rm.move_directly_gantry([tray.pose.position.x - 0.25 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
@@ -377,43 +386,43 @@ class GantryGetTray(smach.State):
         self.gp.move('home')
         return 'trayon'
 
-class FindPartInEnvironment(smach.State):
-    def __init__(self, sensors, outcomes=['found'], input_keys=['part'], output_keys=['partposition', 'partcurrentposition']):
-        smach.State.__init__(self, outcomes, input_keys, output_keys)
-        self.sen = sensors
+class FindPartInEnvironment(smach.State):   
+    def __init__(self, sensors, outcomes=['found', 'none'], input_keys=['task', 'part'], output_keys=['partposition', 'partcurrentposition']):  
+        smach.State.__init__(self, outcomes, input_keys, output_keys)   
+        self.sen = sensors  
 
-    def execute(self, ud):
-        objects = self.sen.get_object_pose_in_workcell()
-        ud.partposition = ud.part.pose.position
-        for product in objects:
-            if product.pose.position.x < - 2.7:
-                print("ODBACUJEM OVAJ OBJEKT NA POZICIJI " + str(product.pose.position.x))
-                continue
+    def execute(self, ud):  
+        objects = self.sen.get_object_pose_in_workcell()    
+        pose_tray = self.sen.tf_transform(str("kit_tray_" + str((ud.task.agv)[-1])))    
+        part_pose = Pose()  
+        part_pose.position.x = ud.part.pose.position.x + pose_tray.position.x   
+        part_pose.position.y = ud.part.pose.position.y + pose_tray.position.y   
+        part_pose.position.z = ud.part.pose.position.z + pose_tray.position.z   
+        ud.partposition = part_pose.position    
+        for product in objects: 
+            if product.pose.position.x < - 2.7: 
+                print("ODBACUJEM OVAJ OBJEKT NA POZICIJI " + str(product.pose.position.x))  
+                continue    
+            if product.type == ud.part.type:    
+                ud.partcurrentposition = product.pose.position  
+                return 'found'  
+        return 'none'   
 
-            if product.type == ud.part.type:
-                ud.partcurrentposition = product.pose.position
-                return 'found'
+class KittingRobotPickAndPlace(smach.State):    
+    def __init__(self, robotmover, sensors, outcomes=['success'], input_keys=['task', 'partposition', 'partcurrentposition']):  
+        smach.State.__init__(self, outcomes, input_keys)    
+        self.rm = robotmover    
+        self.sen = sensors  
 
-class KittingRobotPickAndPlace(smach.State):
-    def __init__(self, robotmover, sensors, outcomes=['success'], input_keys=['task', 'partposition', 'partcurrentposition']):
-        smach.State.__init__(self, outcomes, input_keys)
-        self.rm = robotmover
-        self.sen = sensors
-
-    def execute(self, ud):
-        partcurrentpos = [ud.partcurrentposition.x, ud.partcurrentposition.y, ud.partcurrentposition.z, 0, pi/2, 0]
-        pose_tray = self.sen.tf_transform(str("kit_tray_" + str((ud.task.agv)[-1])))
-        part_pose = Pose()
-        part_pose.position.x = ud.partposition.x + pose_tray.position.x
-        part_pose.position.y = ud.partposition.y + pose_tray.position.y
-        part_pose.position.z = ud.partposition.z + pose_tray.position.z
-        partpos = [part_pose.position.x, part_pose.position.y, part_pose.position.z + 0.02, 0, pi/2, 0]
-        self.rm.pickup_kitting(partcurrentpos)
-        while not self.rm.kitting_pickedup:
-            rospy.sleep(0.2)
-        self.rm.place_kitting(partpos)
-        partpos[2] = partpos[2] + 0.1
-        self.rm.move_directly_kitting(partpos)
+    def execute(self, ud):  
+        partcurrentpos = [ud.partcurrentposition.x, ud.partcurrentposition.y, ud.partcurrentposition.z, 0, pi/2, 0] 
+        partpos = [ud.partposition.x, ud.partposition.y, ud.partposition.z + 0.02, 0, pi/2, 0]  
+        self.rm.pickup_kitting(partcurrentpos)  
+        while not self.rm.kitting_pickedup: 
+            rospy.sleep(0.2)    
+        self.rm.place_kitting(partpos)  
+        partpos[2] = partpos[2] + 0.3   
+        self.rm.move_directly_kitting(partpos)  
         return 'success'
 
 class CheckFaulty(smach.State):
@@ -489,7 +498,3 @@ class WaitKitting(smach.State):
         #    while self.act.direct_kinematics_kitting_arm != homepose:
         #        pass
         return 'done'
-    
-
-
-

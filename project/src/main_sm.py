@@ -34,7 +34,7 @@ if __name__ == '__main__':
         smach.StateMachine.add('SENDGANTRY', SendGantry(gp, node, ass), transitions={'arrived':'CHECKPART'}, remapping={'task':'task'})
         smach.StateMachine.add('CHECKPART', CheckPart(), transitions={'noParts':'SUBMITASSEMBLY', 'newPart':'FINDPART'}, remapping={'task':'task', 'part':'part'})
         smach.StateMachine.add('SUBMITASSEMBLY', SubmitAssemblyShipment(node), transitions={'success':'finished'}, remapping={'task':'task'})
-        smach.StateMachine.add('FINDPART', FindPartOnTray(act, node, sen), transitions={'found':'GANTRYMOVEPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
+        smach.StateMachine.add('FINDPART', FindPartOnTray(act, node, sen), transitions={'found':'GANTRYMOVEPART', 'noFound':'CHECKPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
         smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(rm, sen, node, ass, gp, act), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part', 'task':'task'})
 
     ksm = smach.StateMachine(outcomes=['finished'], input_keys=['kittingtask', 'faultybinposition'])
@@ -67,7 +67,7 @@ if __name__ == '__main__':
             
         # smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'done':'CHECKKITTINGPART'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task', 'traydone':'traydone'})
         smach.StateMachine.add('CHECKKITTINGPART', CheckPart(), transitions={'noParts':'SUBMITKITTING', 'newPart':'FINDPARTINENV'}, remapping={'task':'kittingtask', 'part':'part'})
-        smach.StateMachine.add('FINDPARTINENV', FindPartInEnvironment(sen), transitions={'found':'KITTINGPICKANDPLACE'}, remapping={'part':'part', 'partcurrentposition':'partcurrentposition', 'partposition':'partposition'})
+        smach.StateMachine.add('FINDPARTINENV', FindPartInEnvironment(sen), transitions={'found':'KITTINGPICKANDPLACE', 'none':'CHECKKITTINGPART'}, remapping={'task':'kittingtask', 'part':'part', 'partcurrentposition':'partcurrentposition', 'partposition':'partposition'})
         smach.StateMachine.add('KITTINGPICKANDPLACE', KittingRobotPickAndPlace(rm, sen), transitions={'success':'CHECKFAULTY'}, remapping={'task':'kittingtask', 'partposition':'partposition', 'partcurrentposition':'partcurrentposition'})
         smach.StateMachine.add('CHECKFAULTY', CheckFaulty(), transitions={'faulty':'FAULTYPICKANDPLACE', 'notfaulty':'CHECKKITTINGPART'}, remapping={'part':'part'})
         smach.StateMachine.add('FAULTYPICKANDPLACE', KittingRobotPickAndPlace(rm, sen), transitions={'success':'FINDPARTINENV'}, remapping={'task':'kittingtask', 'partposition':'faultybinposition', 'partcurrentposition':'partposition'})
@@ -104,9 +104,9 @@ if __name__ == '__main__':
         smach.StateMachine.add('CONTINUEINTERRUPTED', ContinueInterrupted(), transitions={'continue':'CHECKORDERS'}, remapping={'interrupted':'interrupted'}) 
 
     faultybin = Pose()
-    faultybin.position.x = 0
-    faultybin.position.y = 0
-    faultybin.position.z = 0
+    faultybin.position.x = -2.186829
+    faultybin.position.y = 0.1
+    faultybin.position.z = 0.8
 
     sm.userdata.faultybinposition = faultybin.position
 
