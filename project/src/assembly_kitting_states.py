@@ -28,10 +28,11 @@ class CheckGripper(smach.State):
         self.act = actuators
 
     def execute(self, ud):
+        print(ud.task.shipment_type)
         gripper = self.act.gripper_type
         if str(gripper) !=  'gripper_part':
             ud.gripper = 'gripper_tray'
-            return 'gripper_part'
+            return 'changegripper'
         else:
             return 'next'
 
@@ -309,7 +310,7 @@ class GetGripper(smach.State):
     
     def execute(self, ud):   ##################### poboljsati?     kopija iz main.py
         curr_pose = self.rm.get_pos_gantry()
-        self.rm.move_directly_gantry([curr_pose[0], curr_pose[1], curr_pose[2]+0.3, 0, pi/2, 0], 1)
+        self.rm.move_directly_gantry([curr_pose[0], curr_pose[1] + 0.2, curr_pose[2]+0.3, 0, pi/2, 0], 1)
         rospy.sleep(3)  # TODO pozicija i while
 
         self.gp.move('gripperstation')
@@ -350,16 +351,16 @@ class GantryGetTray(smach.State):
                     ymin = tray.pose.position.y
                     min_tray = tray
         tray = min_tray
-        self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z + 0.02, 0, pi/2, pi/2], joints=1, tray_pickup = 1, liftup=0)
+        self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z + 0.021, 0, pi/2, pi/2], joints=1, tray_pickup = 1, liftup=0)
         while not self.rm.gantry_pickedup:
             rospy.sleep(0.2)
 
-        if tray.type == "movable_tray_metal_shiny": # TODO NEMOJ BITI GLUP
-            self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.25, 0, pi/2, pi/2], 1)
+        if tray.pose.position.x < -6: 
+            self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
         else:
-            self.rm.move_directly_gantry([tray.pose.position.x - 0.25 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.25, 0, pi/2, pi/2], 1)
+            self.rm.move_directly_gantry([tray.pose.position.x - 0.25 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
 
-        rospy.sleep(0.8)
+        rospy.sleep(1.0)
         self.gp.move(ud.task.agv)
         while self.gp.checking_position:
             rospy.sleep(0.2)
@@ -369,9 +370,9 @@ class GantryGetTray(smach.State):
         self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, 0], 1, 0)
         rospy.sleep(0.1)
         if ud.task.agv == "agv1" or ud.task.agv == "agv2":
-            self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y + 0.2, agv_pose.position.z + 1, 0, pi/2, 0], 1)
+            self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y + 0.25, agv_pose.position.z + 0.4, 0, pi/2, 0], 1)
         else:
-            self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y - 0.2, agv_pose.position.z + 1.2, 0, pi/2, 0], 1)
+            self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y - 0.25, agv_pose.position.z + 0.4, 0, pi/2, 0], 1)
         rospy.sleep(0.2)
         self.gp.move('home')
         return 'trayon'
@@ -411,7 +412,7 @@ class KittingRobotPickAndPlace(smach.State):
         while not self.rm.kitting_pickedup:
             rospy.sleep(0.2)
         self.rm.place_kitting(partpos)
-        partpos[2] = partpos[2] + 0.5
+        partpos[2] = partpos[2] + 0.1
         self.rm.move_directly_kitting(partpos)
         return 'success'
 
@@ -489,5 +490,6 @@ class WaitKitting(smach.State):
         #        pass
         return 'done'
     
+
 
 

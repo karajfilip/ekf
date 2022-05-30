@@ -64,7 +64,6 @@ class GantryPlanner:
 
     # Pomakne robota na odredeni station. Brojevi stationa su na pocetku filea
     def move(self, station):
-
         if (station == 'as1'):
             station_number = 1
         elif (station == 'as2'):
@@ -231,5 +230,6 @@ class GantryPlanner:
             return True
         else:
             return False
+
 
 

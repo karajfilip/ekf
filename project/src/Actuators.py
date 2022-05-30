@@ -4,6 +4,7 @@ import rospy
 import numpy as np
 import math
 import sys
+from math import pi
 
 from sensor_msgs.msg import JointState
 from nist_gear.msg import RobotHealth, VacuumGripperState, ConveyorBeltState
@@ -118,7 +119,6 @@ class Actuators():
         rospy.wait_for_service('/ariac/kitting/arm/gripper/control')
         rospy.ServiceProxy('/ariac/kitting/arm/gripper/control', VacuumGripperControl)(False)
 
-
     def activate_gantry_gripper(self):
         rospy.wait_for_service('/ariac/gantry/arm/gripper/control')
         rospy.ServiceProxy('/ariac/gantry/arm/gripper/control', VacuumGripperControl)(True)
@@ -126,7 +126,6 @@ class Actuators():
     def deactivate_gantry_gripper(self):
         rospy.wait_for_service('/ariac/gantry/arm/gripper/control')
         rospy.ServiceProxy('/ariac/gantry/arm/gripper/control', VacuumGripperControl)(False)
-
 
     def is_object_attached_kitting(self):
         return rospy.wait_for_message('/ariac/kitting/arm/gripper/state', VacuumGripperState)
@@ -151,6 +150,43 @@ class Actuators():
 
 
     ### DIRECT & INVERSE KINEMATICS ###
+
+    # rotation = [-2pi, 2pi]
+    def calc_penalty(self, rotation):
+        rotation = abs(rotation)
+        if rotation > pi:
+            penalty = pow(rotation,2) - pow(pi, 2)
+            return penalty
+        else:
+            return 0
+
+    def fix_joints_kitting(self, wanted_joints, curr_joints):
+        if curr_joints == None:
+            curr_joints = list(self.kitting_joint_state.position)
+            del curr_joints[4]
+        if len(curr_joints) != 7 and len(wanted_joints) != 7:
+            print("KITTING_MOVER: ERROR - INVALID JOINTS TO FIX!")
+            return wanted_joints
+
+        # "elbow_joint", "linear_arm_actuator_joint", "shoulder_lift_joint", "shoulder_pan_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"
+        # FIX FIX FIX FI                              FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX FIX
+        fixed_joints = []
+        for i in range(0, len(wanted_joints)):
+            if i == 2:
+                continue
+
+            penalty_0 = self.calc_penalty(wanted_joints[i]) + abs(curr_joints[i] - wanted_joints[i])
+            penalty_plus = self.calc_penalty(wanted_joints[i] + 2 * pi) + abs(curr_joints[i] - wanted_joints[i])
+            penalty_minus = self.calc_penalty(wanted_joints[i] - 2 * pi) + abs(curr_joints[i] - wanted_joints[i])
+
+            if penalty_0 < penalty_minus and penalty_0 < penalty_plus:
+                fixed_joints.append(wanted_joints[i])
+            elif penalty_minus < penalty_0 and penalty_minus < penalty_plus:
+                fixed_joints.append(wanted_joints[i] - 2 * pi)
+            else:
+                fixed_joints.append(wanted_joints[i] + 2 * pi)
+        return fixed_joints
+
     def direct_kinematics_kitting_arm(self):
         ee_pose = self.kitting_group.get_current_pose().pose
 

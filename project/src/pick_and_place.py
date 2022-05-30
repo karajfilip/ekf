@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import rospy
 import math
 from trajectory_msgs.msg import JointTrajectory
@@ -100,7 +102,7 @@ class RobotMover:
         return
 
     # Je li robot dosao na poslanu poziciju? Tolerancija +- 0.05. Radi samo za xyz pozicije, nema orijentacije
-    def check_kitting_position(self,position, tolerance=0.05):
+    def check_kitting_position(self,position, tolerance=0.02):
         x = position[0]
         y = position[1]
         z = position[2]
@@ -117,7 +119,7 @@ class RobotMover:
 
         return False
 
-    def check_gantry_position(self,position, tolerance=0.05):
+    def check_gantry_position(self,position, tolerance=0.04):
             x = position[0]
             y = position[1]
             z = position[2]
@@ -143,7 +145,8 @@ class RobotMover:
     def add_point_kitting(self, position, used_time=0, point_time=1, prev_joints=None):
         joint_point = self.inverse_kin.inverse_kinematics_kitting_arm(position, prev_joints)
         joint_point = [joint_point[3], joint_point[0], joint_point[2], joint_point[1], joint_point[4], joint_point[5], joint_point[6]]
-        
+        joint_points = self.inverse_kin.fix_joints_kitting(joint_point, prev_joints)
+
         point = JointTrajectoryPoint()
         point.positions = joint_point
         point.time_from_start = rospy.Duration(used_time + point_time)
@@ -243,7 +246,7 @@ class RobotMover:
         used_time = 0
 
         current_pos = self.get_pos_kitting()
-        current_pos[2] += 0.3
+        current_pos[2] += 0.2
         current_pos.append(position[3])
         current_pos.append(position[4])
         current_pos.append(position[5])
@@ -252,19 +255,20 @@ class RobotMover:
         above_end[2] = above_end[2] + 0.2
 
         p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=0.7, prev_joints=None)
-        if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
-            joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
+        #if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
+            #joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
             
-            p3 = JointTrajectoryPoint()
-            p3.positions = joint_point
-            p3.time_from_start = rospy.Duration(used_time + 1.5)
-            used_time = used_time + 1.5
+            #p3 = JointTrajectoryPoint()
+            #p3.positions = joint_point
+            #p3.time_from_start = rospy.Duration(used_time + 1.5)
+            #used_time = used_time + 1.5
 
-            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p3.positions)
-            trajectory = self.make_traj_kitting([p1, p3, p2])
-        else:
-            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
-            trajectory = self.make_traj_kitting([p1, p2])
+            #p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p3.positions)
+            #trajectory = self.make_traj_kitting([p1, p2])
+            #trajectory = self.make_traj_kitting([p1, p3, p2])
+        #else:
+        p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
+        trajectory = self.make_traj_kitting([p1, p2])
         self.kitting_cmd.publish(trajectory)
 
         print("KITTING_MOVER: Sent first")
@@ -282,8 +286,8 @@ class RobotMover:
 
 
         end_pos = close_to_end
-        end_pos[2] = close_to_end[2] - 0.15
-        p4, used_time = self.add_point_kitting(end_pos, used_time=used_time, point_time=3, prev_joints=p3.positions)
+        end_pos[2] = close_to_end[2] - 0.1
+        p4, used_time = self.add_point_kitting(end_pos, used_time=used_time, point_time=4, prev_joints=p3.positions)
         trajectory2 = self.make_traj_kitting([p3, p4])
 
         self.kitting_cmd.publish(trajectory2)
@@ -305,30 +309,33 @@ class RobotMover:
         above_end = position
         above_end[2] = above_end[2] + 0.3
 
-        end_pos = above_end
-        end_pos[2] = end_pos[2] - 0.15
 
         p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=0.5, prev_joints=None)
-        if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
-            joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
+        #if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
+            #joint_point = [1.5462708704375743, -1.110562287222693, -1.5487328986142959, 3.2318798776308815, -1.5683342733005696, -1.5707963045250863, 3.2318798776894173]
             
-            p4 = JointTrajectoryPoint()
-            p4.positions = joint_point
-            p4.time_from_start = rospy.Duration(used_time + 1.5)
-            used_time = used_time + 1.5
+            #p4 = JointTrajectoryPoint()
+            #p4.positions = joint_point
+            #p4.time_from_start = rospy.Duration(used_time + 1.5)
+            #used_time = used_time + 1.5
         
-            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p4.positions)
-            p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
-            trajectory = self.make_traj_kitting([p1, p4, p2, p3])   
-        else:
-            p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
-            p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
-            trajectory = self.make_traj_kitting([p1, p2, p3])
+            #p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p4.positions)
+            #p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
+            #trajectory = self.make_traj_kitting([p1, p2, p3])
+            #trajectory = self.make_traj_kitting([p1, p4, p2, p3])   
+        #else:
+        p2, used_time = self.add_point_kitting(above_end, used_time, point_time=1.5, prev_joints=p1.positions)
+
+        end_pos = above_end
+        end_pos[2] = end_pos[2] - 0.17
+        p3, used_time = self.add_point_kitting(end_pos, used_time, point_time=1, prev_joints=p2.positions)
+
+        trajectory = self.make_traj_kitting([p1, p2, p3])
 
         self.kitting_cmd.publish(trajectory)
 
         print("KITTING_MOVER: Sent trajectory")
-        while not self.check_kitting_position(end_pos):
+        while not self.check_kitting_position(end_pos, tolerance=0.015):
             rospy.sleep(0.2)
         self.inverse_kin.deactivate_kitting_gripper()
         print("KITTING_MOVER: Let go")
@@ -504,6 +511,15 @@ class RobotMover:
         print("GANTRY_MOVER: Sent")
         return
 
+    def assemble_gantry(self, station_name, object_name, joints=0):
+        if station_name == 'as1':
+            base_frame = [-7.22, 3.09, 1.2]
+        elif station_name == 'as2':
+            base_frame = [-12.22, 3.09, 1.2]
+        return
+
+
+
     # Funkcija za pokupljavanje sa trake pomocu kitting robota. Pozovi i on ide na predmet odredenog indexa (default 0)
     def pickup_from_track(self, pose_array_i=0):
         rospy.sleep(0.2)
@@ -609,6 +625,13 @@ class RobotMover:
     # Ako imas fliipani objekt primljen, rjesi ga s ovom funkcijom
     # Automatski dovede objekt na poziciju, okrene i baci
     def flip_part_kitting(self, position):
+        self.flip_num += 1
+        x_offset = 0
+        y_offset = 0
+        if self.flips_num == 1:
+            y_offset = 0.065
+        elif self.flip_num == 3:
+            x_offset = 0.065
         print("KITTING_MOVER: Pickup from:" + str(position))
         self.kitting_pickedup = False
         used_time = 0
@@ -618,38 +641,55 @@ class RobotMover:
         current_pos.append(position[3])
         current_pos.append(position[4])
         current_pos.append(position[5])
-        
+
+        # pi/2 u y, pi/2 u z, pi/2 u z, -pi/2 u y
         above_end = position
         above_end[2] = above_end[2] + 0.3
-        #above_end[4] = above_end[4] + math.pi/2
-        above_end[3] = above_end[3] - math.pi/2
+        if self.flip_num == 1:
+            above_end[3] = above_end[4] + math.pi/2
+            above_end[5] = above_end[3] + math.pi/2
+        elif self.flip_num == 2:
+            above_end[5] = above_end[3] + math.pi/2
+        elif self.flip_num == 2:
+            above_end[3] = above_end[3] - math.pi/2
 
         p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=2.2, prev_joints=None)
         p2, used_time = self.add_point_kitting(above_end, used_time, point_time=2.3, prev_joints=p1.positions)
 
         close_to_end = above_end
+        close_to_end[0] = close_to_end + x_offset
+        close_to_end[1] = close_to_end + y_offset
         close_to_end[2] = close_to_end[2] - 0.15
         p3, used_time = self.add_point_kitting(close_to_end, used_time=used_time, point_time=1.2, prev_joints=None)
-
 
         trajectory = self.make_traj_kitting([p1, p2, p3])
         self.kitting_cmd.publish(trajectory)
 
-        while not self.check_kitting_position(close_to_end, tolerance=0.01):
+        while not self.check_kitting_position(close_to_end, tolerance=0.01) and not self.check_kitting_rotation(close_to_end, tolerance=0.1):
             rospy.sleep(0.1)
 
         self.inverse_kin.deactivate_kitting_gripper()
         print("KITTING_MOVER: Let go (flip)")
-        return  
-  
+        while self.flip_num < 3:
+            self.flip_part_kitting([-2, 2.47, 0.8, 0, math.pi/2, 0])
+        if self.flip_num == 3:
+            self.flip_num = 0
+        return
 
 #rospy.init_node("roboter")
 #rm = RobotMover()
-#rospy.sleep(0.5)
-#rm.pickup_kitting([-1.9988136037121578, -2.6644014024893363, 0.7554965688566175, 0, 1.5707963267948966, 0])
 #while not rm.kitting_pickedup:
 #    rospy.sleep(0.2)
 #rm.place_kitting([-2.265,1.37 , 0.8 , 0 , math.pi/2 , 0])
-#rm.flip_part_kitting([-2, 2.47, 0.779, 0, math.pi/2, 0])
+
+#while rm.watching_kitting:
+#    rospy.sleep(0.2)
+#rm.pickup_kitting([-1.79, 2.6655014024893363, 0.77965688566175, 0, 1.5707963267948966, 0])
+#while not rm.kitting_pickedup:
+#    rospy.sleep(0.2)
+#rm.place_kitting([-2.265,1.37 , 0.8 , 0 , math.pi/2 , 0])
+
+#rm.flip_part_kitting([-1.79, 2.465, 0.774, 0, math.pi/2, 0])
 #rospy.spin()
+
 
