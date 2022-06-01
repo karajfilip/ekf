@@ -68,6 +68,12 @@ class Sensors_functions():
         tf_buffer = tf2_ros.Buffer()
         tf_listener = tf2_ros.TransformListener(tf_buffer)
 
+        # check if there is a sensor blackout
+        try:
+            print(rospy.wait_for_message("/ariac/breakbeam_0", Proximity, 1))
+        except:
+            return objects
+        
         # wait for all cameras to be broadcasting
         all_topics = rospy.get_published_topics()
         #  NOTE: This will not work if your logical cameras are named differently
