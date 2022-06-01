@@ -27,7 +27,7 @@ class CheckOrders(smach.State):
     def __init__(self, processmgmt, outcomes=['complete', 'nextOrder', 'highPriorityOrder'], output_keys=['nextOrder']):
         smach.State.__init__(self, outcomes, output_keys=output_keys)
         self.node = processmgmt
-        self.interrupted = False
+        self.node.interrupted = False
         self.node.orders_served = 0
         self.lastorder = None
 
@@ -35,10 +35,13 @@ class CheckOrders(smach.State):
         while not self.node.received_order:
             pass
 
-        if self.interrupted == True:
-            self.node.orders_served -= 1
-            self.interrupted = False
+        if self.node.interrupted == True:
+            rospy.logwarn('reduce reuse recycle')
+            self.node.orders_served -= 3
+            self.node.interrupted = False
         
+        rospy.logerr(self.node.orders)
+        rospy.logerr(self.node.orders_served)
         if len(self.node.orders)<=self.node.orders_served:
             return 'complete'
         else:
@@ -47,7 +50,7 @@ class CheckOrders(smach.State):
             if order.order_id == 'order_1' or 'update' in order.order_id:
                 self.node.orders_served += 1
                 if 'update' not in order.order_id:
-                    self.interrupted = True
+                    self.node.interrupted = True
                 return 'highPriorityOrder'
             return 'nextOrder'
 
@@ -55,7 +58,6 @@ class WaitOrder(smach.State):
     def __init__(self, processmgmt, outcomes=['complete', 'nextOrder', 'highPriorityOrder'], output_keys=['nextOrder']):
         smach.State.__init__(self, outcomes, output_keys=output_keys)
         self.node = processmgmt
-        self.lastorder = None
 
     def execute(self, ud):
         if self.preempt_requested():
@@ -71,7 +73,7 @@ class WaitOrder(smach.State):
         if order.order_id == 'order_1' or 'update' in order.order_id:
             self.node.orders_served += 1
             if 'update' not in order.order_id:
-                self.interrupted = True
+                self.node.interrupted = True
             return 'highPriorityOrder'
         return 'nextOrder'
 
@@ -99,9 +101,14 @@ class CheckTasks(smach.State):
             self.asi = 0
             ud.kittingtask = None
             self.order = ud.order
-        if self.ksi < len(ud.order.kitting_shipments):
-            ud.kittingtask = ud.order.kitting_shipments[self.ksi]
+        if self.ksi < len(ud.order.kitting_shipments):            
+            task = ud.order.kitting_shipments[self.ksi]
+            ud.kittingtask = task
             self.ksi += 1
+            if task.assembly_station in self.node.placed:
+                for product in task.products:
+                    self.node.remove.append([p for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp != product.pose])
+                    self.node.skip.append([t for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp == product.pose])
             return 'kitting'
         elif self.asi < len(ud.order.assembly_shipments):
             ud.task = ud.order.assembly_shipments[self.asi]
@@ -140,6 +147,7 @@ class HPCheckTasks(smach.State):
             self.asi += 1
             return 'assembly'
         else:
+            self.node.orders.remove(ud.order)
             return 'complete'
 
 class ContinueInterrupted(smach.State):

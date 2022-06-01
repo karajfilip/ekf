@@ -286,7 +286,7 @@ class RobotMover:
 
 
         end_pos = close_to_end
-        end_pos[2] = close_to_end[2] - 0.1
+        end_pos[2] = close_to_end[2] - 0.05
         p4, used_time = self.add_point_kitting(end_pos, used_time=used_time, point_time=4, prev_joints=p3.positions)
         trajectory2 = self.make_traj_kitting([p3, p4])
 
