@@ -77,7 +77,7 @@ class WaitOrder(smach.State):
 
 
 class CheckTasks(smach.State):
-    def __init__(self, processmgmt, outcomes=['kitting', 'assembly', 'complete'], input_keys=['order'], output_keys=['task', 'kittingtask']):
+    def __init__(self, processmgmt, outcomes=['kitting', 'assembly', 'complete', 'kittingnotray'], input_keys=['order'], output_keys=['task', 'kittingtask']):
         smach.State.__init__(self, outcomes, input_keys, output_keys)
         self.node = processmgmt
         self.order = Order()
@@ -85,27 +85,40 @@ class CheckTasks(smach.State):
         self.asi = 0
 
     def execute(self, ud):
-        rospy.logwarn(self.node.interrupted)
+        rospy.logwarn('TASKS')
         if self.node.interrupted:
-            rospy.logerr(self.node.interrupted.shipment_type)
-            if 'kitting' in self.node.interrupted.shipment_type:
-                ud.kittingtask = self.node.interrupted
-            elif 'assembly' in self.node.interrupted.shipment_type:
+            if 'kitting' in str(self.node.interrupted.shipment_type):
+                task = self.node.interrupted
+                ud.kittingtask = task
+                rospy.logerr(task.agv)
+                rospy.logwarn(self.node.placed)
+                if task.agv in self.node.placed:
+                    for product in task.products:
+                        self.node.remove.extend([p for t,p,rp in self.node.placed[task.agv] if t == product.type and rp != product.pose])
+                        self.node.skip.extend([t for t,p,rp in self.node.placed[task.agv] if t == product.type and rp == product.pose])
+                else:
+                    self.node.placed[task.agv] = list()
+                self.node.interrupted = None
+                return 'kittingnotray'
+            elif 'assembly' in str(self.node.interrupted.shipment_type):
                 ud.task = self.node.interrupted
-            self.node.interrupted = None
+                self.node.interrupted = None
+                return 'assemblynotray'
         if ud.order != self.order:
             self.ksi = 0
             self.asi = 0
             ud.kittingtask = None
             self.order = ud.order
+            self.node.skip = list()
+            self.node.remove = list()
         if self.ksi < len(ud.order.kitting_shipments):            
             task = ud.order.kitting_shipments[self.ksi]
             ud.kittingtask = task
             self.ksi += 1
             if task.assembly_station in self.node.placed:
                 for product in task.products:
-                    self.node.remove.append([p for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp != product.pose])
-                    self.node.skip.append([t for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp == product.pose])
+                    self.node.remove.extend([p for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp != product.pose])
+                    self.node.skip.extend([t for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp == product.pose])
             return 'kitting'
         elif self.asi < len(ud.order.assembly_shipments):
             ud.task = ud.order.assembly_shipments[self.asi]
@@ -137,8 +150,8 @@ class HPCheckTasks(smach.State):
             self.ksi += 1
             if task.assembly_station in self.node.placed:
                 for product in task.products:
-                    self.node.remove.append([p for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp != product.pose])
-                    self.node.skip.append([t for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp == product.pose])
+                    self.node.remove.extend([p for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp != product.pose])
+                    self.node.skip.extend([t for t,p,rp in self.node.placed[task.assembly_station] if t == product.type and rp == product.pose])
             return 'kitting'
         elif self.asi < len(ud.order.assembly_shipments):
             ud.HPtask = ud.order.assembly_shipments[self.asi]

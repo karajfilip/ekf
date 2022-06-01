@@ -52,7 +52,6 @@ class CheckPart(smach.State):
         self.i = 0
 
     def execute(self, ud):
-        print(self.i)
         if self.preempt_requested():
             self.service_preempt()
             rospy.logwarn('PREEMPTED')
@@ -410,7 +409,6 @@ class GetGripper(smach.State):
         while self.gp.checking_position:
             rospy.sleep(0.1)
 
-        print(self.rm.inverse_kin.gripper_type)
         try:
             self.rm.inverse_kin.change_gripper(
                 str(ud.gripper))
@@ -453,7 +451,6 @@ class GantryGetTray(smach.State):
         while not self.rm.gantry_pickedup:
             rospy.sleep(0.2)
 
-        self.rm.move_directly_gantry([tray.pose.position.x , tray.pose.position.y, tray.pose.position.z + 0.2, 0, pi/2, pi/2])
 
         if tray.pose.position.x < -6:
             self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
@@ -478,9 +475,10 @@ class GantryGetTray(smach.State):
         return 'trayon'
 
 class FindPartInEnvironment(smach.State):   
-    def __init__(self, sensors, outcomes=['found', 'none', 'preempted'], input_keys=['task', 'part'], output_keys=['partpose', 'partcurrentpose']):  
+    def __init__(self, processmgmt, sensors, outcomes=['found', 'none', 'preempted'], input_keys=['task', 'part'], output_keys=['partpose', 'partcurrentpose']):  
         smach.State.__init__(self, outcomes, input_keys, output_keys)   
-        self.sen = sensors  
+        self.sen = sensors
+        self.node = processmgmt
 
     def execute(self, ud):
         if self.preempt_requested():
@@ -502,6 +500,15 @@ class FindPartInEnvironment(smach.State):
             if product.type == ud.part.type:    
                 ud.partcurrentpose = product.pose  
                 return 'found'  
+        for agv in self.node.placed:
+            for product_type, position, pose in self.node.placed[agv]:
+                if product_type == ud.part.type:
+                    temp_pose = Pose()
+                    temp_pose.position = position
+                    ud.partcurrentpose = temp_pose
+                    print('nasla u placed')
+                    return 'found'
+            #nadi u placed ako nema u env
         return 'none'   
 
 class KittingRobotPickAndPlace(smach.State):    
@@ -528,9 +535,41 @@ class KittingRobotPickAndPlace(smach.State):
             return 'lost'  
         if not self.rm.place_kitting(partpos):
             return 'lost'
-        self.node.placed[ud.task.assembly_station] = (ud.part.type, ud.partpose.position, ud.part.pose)
+        part_tuple = (ud.part.type, ud.partpose.position, ud.part.pose)
+        if ud.task.agv not in self.node.placed:
+            self.node.placed[ud.task.agv] = list()
+        self.node.placed[ud.task.agv].append(part_tuple)            
         partpos[2] = partpos[2] + 0.3   
         self.rm.move_directly_kitting(partpos) 
+        return 'success'
+
+class FaultyPickAndPlace(smach.State):    
+    def __init__(self, processmgmt, robotmover, sensors, outcomes=['success', 'lost', 'preempted'], input_keys=['task', 'partpose', 'partcurrentpose', 'part']):  
+        smach.State.__init__(self, outcomes, input_keys) 
+        self.node = processmgmt   
+        self.rm = robotmover    
+        self.sen = sensors  
+
+    def execute(self, ud):
+        if self.preempt_requested():
+            self.service_preempt()
+            rospy.logwarn('PREEMPTED')
+            return 'preempted'
+        diff_x = ud.partpose.orientation.x - ud.partcurrentpose.orientation.x
+        diff_y = ud.partpose.orientation.y - ud.partcurrentpose.orientation.y
+        diff_z = ud.partpose.orientation.z - ud.partcurrentpose.orientation.z
+        partcurrentpos = [ud.partcurrentpose.position.x, ud.partcurrentpose.position.y, ud.partcurrentpose.position.z, 0, pi/2, 0] 
+        partpos = [ud.partpose.position.x, ud.partpose.position.y, ud.partpose.position.z + 0.02, 0+diff_x, pi/2, 0+diff_z]  
+        self.rm.pickup_kitting(partcurrentpos)
+        while not self.rm.kitting_pickedup: 
+            rospy.sleep(0.2) 
+        if not self.rm.inverse_kin.is_object_attached_kitting().attached: 
+            return 'lost'  
+        if not self.rm.place_kitting(partpos):
+            return 'lost'
+        partpos[2] = partpos[2] + 0.3   
+        self.rm.move_directly_kitting(partpos)
+        self.node.placed[ud.task.agv].pop()
         return 'success'
 
 class CheckFaulty(smach.State):
