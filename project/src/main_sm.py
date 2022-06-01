@@ -11,9 +11,50 @@ import process_management
 import nist_assembly
 import smach_ros
 
-def sm_cb(outcome_map):
-    if outcome_map['TRAY']:
+# gets called when ANY child state terminates
+def child_term_cb_kitting(outcome_map):
+
+  if outcome_map['ORDERS'] == 'highPriorityOrder':
+    return True
+
+  if outcome_map['KITTING']:
+    return True
+
+  # in all other case, just keep running, don't terminate anything
+  return False
+
+
+# gets called when ALL child states are terminated
+def out_cb_kitting(outcome_map):
+    if outcome_map['ORDERS'] == 'highPriorityOrder':
+        return 'interrupted'
+    elif outcome_map['KITTING'] == 'interrupted':
+        return 'interrupted'
+    else:
+        return 'complete'
+
+# gets called when ANY child state terminates
+def child_term_cb_assembly(outcome_map):
+
+    if outcome_map['ORDERS'] == 'highPriorityOrder':
         return True
+
+    if outcome_map['ASSEMBLY']:
+        return True
+
+    # in all other case, just keep running, don't terminate anything
+    return False
+
+
+# gets called when ALL child states are terminated
+def out_cb_assembly(outcome_map):
+    if outcome_map['ORDERS'] == 'highPriorityOrder':
+        return 'interrupted'
+    elif outcome_map['ASSEMBLY'] == 'interrupted':
+        return 'interrupted'
+    else:
+        return 'complete'
+
 
 if __name__ == '__main__':
 
@@ -26,18 +67,18 @@ if __name__ == '__main__':
     node = process_management.process_management() 
     ass = nist_assembly.AssemblyCommander()
 
-    asm = smach.StateMachine(outcomes=['finished'], input_keys=['task', 'kittingtask'])
+    asm = smach.StateMachine(outcomes=['finished', 'interrupted'], input_keys=['task', 'kittingtask'])
 
     with asm:
-        smach.StateMachine.add('CHECKGRIPPER', CheckGripper(act), transitions={'next':'SENDGANTRY', 'changegripper':'CHANGEGRIP'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('CHANGEGRIP', GetGripper(gp, rm),  transitions={'gripperon':'SENDGANTRY'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('SENDGANTRY', SendGantry(gp, node, ass), transitions={'arrived':'CHECKPART'}, remapping={'task':'task'})
-        smach.StateMachine.add('CHECKPART', CheckPart(), transitions={'noParts':'SUBMITASSEMBLY', 'newPart':'FINDPART'}, remapping={'task':'task', 'part':'part'})
-        smach.StateMachine.add('SUBMITASSEMBLY', SubmitAssemblyShipment(node), transitions={'success':'finished'}, remapping={'task':'task'})
-        smach.StateMachine.add('FINDPART', FindPartOnTray(act, node, sen), transitions={'found':'GANTRYMOVEPART', 'noFound':'CHECKPART'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
-        smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(rm, sen, node, ass, gp, act), transitions={'moved':'CHECKPART'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part', 'task':'task'})
+        smach.StateMachine.add('CHECKGRIPPER', CheckGripper(act), transitions={'next':'SENDGANTRY', 'changegripper':'CHANGEGRIP', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
+        smach.StateMachine.add('CHANGEGRIP', GetGripper(gp, rm),  transitions={'gripperon':'SENDGANTRY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
+        smach.StateMachine.add('SENDGANTRY', SendGantry(gp, node, ass), transitions={'arrived':'CHECKPART', 'preempted':'interrupted'}, remapping={'task':'task'})
+        smach.StateMachine.add('CHECKPART', CheckPart(node), transitions={'noParts':'SUBMITASSEMBLY', 'newPart':'FINDPART', 'skip':'CHECKPART', 'preempted':'interrupted'}, remapping={'task':'task', 'part':'part'})
+        smach.StateMachine.add('SUBMITASSEMBLY', SubmitAssemblyShipment(node), transitions={'success':'finished', 'preempted':'interrupted'}, remapping={'task':'task'})
+        smach.StateMachine.add('FINDPART', FindPartOnTray(act, node, sen), transitions={'found':'GANTRYMOVEPART', 'noFound':'CHECKPART', 'preempted':'interrupted'}, remapping={'kittingtask':'kittingtask', 'partcurrentposition': 'partcurrentposition', 'part':'part'})
+        smach.StateMachine.add('GANTRYMOVEPART', GantryMovePart(rm, sen, node, ass, gp, act), transitions={'moved':'CHECKPART', 'preempted':'interrupted'}, remapping={'partcurrentposition':'partcurrentposition', 'part':'part', 'task':'task'})
 
-    ksm = smach.StateMachine(outcomes=['finished'], input_keys=['kittingtask', 'faultybinposition'])
+    ksm = smach.StateMachine(outcomes=['finished', 'interrupted'], input_keys=['kittingtask', 'faultybinposition'])
     with ksm:
 
         # get_gripper_tray_sm = smach.StateMachine(outcomes=['done'], input_keys=['kittingtask', 'trackindex'], output_keys=['gripper', 'traydone'])
@@ -59,48 +100,76 @@ if __name__ == '__main__':
         #     smach.Concurrence.add('TRACK', pick_from_track, remapping={'task':'kittingtask', 'trackindex':'trackindex', 'traydone':'traydone'})
         #     smach.Concurrence.add('TRAY', get_gripper_tray_sm, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'trackindex':'trackindex', 'traydone':'traydone'})
 
-        smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS'}, remapping={'task':'kittingtask'})
-        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
-        smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
-        smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('GETTRAY', GantryGetTray(gp, rm, sen), transitions={'trayon':'CHECKKITTINGPART'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
+        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
+        smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
+        smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
             
         # smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'done':'CHECKKITTINGPART'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task', 'traydone':'traydone'})
-        smach.StateMachine.add('CHECKKITTINGPART', CheckPart(), transitions={'noParts':'SUBMITKITTING', 'newPart':'FINDPARTINENV'}, remapping={'task':'kittingtask', 'part':'part'})
-        smach.StateMachine.add('FINDPARTINENV', FindPartInEnvironment(sen), transitions={'found':'KITTINGPICKANDPLACE', 'none':'CHECKKITTINGPART'}, remapping={'task':'kittingtask', 'part':'part', 'partcurrentposition':'partcurrentposition', 'partposition':'partposition'})
-        smach.StateMachine.add('KITTINGPICKANDPLACE', KittingRobotPickAndPlace(rm, sen), transitions={'success':'CHECKFAULTY'}, remapping={'task':'kittingtask', 'partposition':'partposition', 'partcurrentposition':'partcurrentposition'})
-        smach.StateMachine.add('CHECKFAULTY', CheckFaulty(), transitions={'faulty':'FAULTYPICKANDPLACE', 'notfaulty':'CHECKKITTINGPART'}, remapping={'part':'part'})
-        smach.StateMachine.add('FAULTYPICKANDPLACE', KittingRobotPickAndPlace(rm, sen), transitions={'success':'FINDPARTINENV'}, remapping={'task':'kittingtask', 'partposition':'faultybinposition', 'partcurrentposition':'partposition'})
-        smach.StateMachine.add('SUBMITKITTING', SubmitKittingShipment(node), transitions={'success':'finished'}, remapping={'task':'kittingtask'})
+        smach.StateMachine.add('CHECKTOREMOVE', CheckToRemove(node), transitions={'remove':'REMOVE', 'continue':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
+        smach.StateMachine.add('REMOVE', RemovePart(node, rm, sen), transitions={'removed':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
+        smach.StateMachine.add('CHECKKITTINGPART', CheckPart(node), transitions={'noParts':'SUBMITKITTING', 'newPart':'FINDPARTINENV', 'skip':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'part':'part'})
+        smach.StateMachine.add('FINDPARTINENV', FindPartInEnvironment(sen), transitions={'found':'KITTINGPICKANDPLACE', 'none':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'part':'part', 'partcurrentposition':'partcurrentposition', 'partposition':'partposition'})
+        smach.StateMachine.add('KITTINGPICKANDPLACE', KittingRobotPickAndPlace(node, rm, sen), transitions={'success':'CHECKFAULTY', 'lost':'FINDPARTINENV', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'partposition':'partposition', 'partcurrentposition':'partcurrentposition', 'part':'part'})
+        smach.StateMachine.add('CHECKFAULTY', CheckFaulty(), transitions={'faulty':'FAULTYPICKANDPLACE', 'notfaulty':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'part':'part'})
+        smach.StateMachine.add('FAULTYPICKANDPLACE', KittingRobotPickAndPlace(node, rm, sen), transitions={'success':'FINDPARTINENV', 'lost':'FINDPARTINENV', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'partposition':'faultybinposition', 'partcurrentposition':'partposition', 'part':'part'})
+        smach.StateMachine.add('SUBMITKITTING', SubmitKittingShipment(node), transitions={'success':'finished', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
 
+    hksm = smach.StateMachine(outcomes=['finished', 'interrupted'], input_keys=['kittingtask', 'faultybinposition'])
+    with hksm:
+
+        smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
+        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
+        smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
+        smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+            
+        # smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'done':'CHECKKITTINGPART'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task', 'traydone':'traydone'})
+        smach.StateMachine.add('CHECKTOREMOVE', CheckToRemove(node), transitions={'remove':'REMOVE', 'continue':'HCHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
+        smach.StateMachine.add('REMOVE', RemovePart(node, rm, sen), transitions={'removed':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
+        smach.StateMachine.add('HCHECKKITTINGPART', CheckPart(node), transitions={'noParts':'SUBMITKITTING', 'newPart':'FINDPARTINENV', 'skip':'HCHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'part':'part'})
+        smach.StateMachine.add('FINDPARTINENV', FindPartInEnvironment(sen), transitions={'found':'KITTINGPICKANDPLACE', 'none':'HCHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'part':'part', 'partcurrentposition':'partcurrentposition', 'partposition':'partposition'})
+        smach.StateMachine.add('KITTINGPICKANDPLACE', KittingRobotPickAndPlace(node, rm, sen), transitions={'success':'CHECKFAULTY', 'lost':'FINDPARTINENV', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'partposition':'partposition', 'partcurrentposition':'partcurrentposition', 'part':'part'})
+        smach.StateMachine.add('CHECKFAULTY', CheckFaulty(), transitions={'faulty':'FAULTYPICKANDPLACE', 'notfaulty':'HCHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'part':'part'})
+        smach.StateMachine.add('FAULTYPICKANDPLACE', KittingRobotPickAndPlace(node, rm, sen), transitions={'success':'FINDPARTINENV', 'lost':'FINDPARTINENV', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'partposition':'faultybinposition', 'partcurrentposition':'partposition', 'part':'part'})
+        smach.StateMachine.add('SUBMITKITTING', SubmitKittingShipment(node), transitions={'success':'finished', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
+
+     
     sm = smach.StateMachine(outcomes=['end'], input_keys=['faultybinposition'])
 
     with sm:
 
         smach.StateMachine.add('START', StartCompetition(node), transitions={'success':'CHECKORDERS'}, remapping={'interrupted':'interrupted'})
-        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'ENDCOMP', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order', 'interrupted':'interrupted'})
-        smach.StateMachine.add('CHECKTASKS', CheckTasks(), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
+        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'ENDCOMP', 'nextOrder':'SERVEORDER', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order'})
+        smach.StateMachine.add('SERVEORDER', ServeOrder(node), transitions={'continue':'CHECKTASKS'})
+        smach.StateMachine.add('CHECKTASKS', CheckTasks(node), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
         smach.StateMachine.add('ENDCOMP', EndCompetition(node), transitions={'ended':'end'})
 
-        concurent_assembly = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['task', 'kittingtask', 'interrupted'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'ASSEMBLY':'finished'}})
+        # waitorder = smach.StateMachine(outcomes=['highPriorityOrder'], output_keys=['nextOrder'])
+        # with waitorder:
+        #     smach.StateMachine.add('WAITFORORDER', CheckOrders(node), transitions={'complete':'WAITFORORDER', 'highPriorityOrder':'highPriorityOrder', 'nextOrder':'WAITFORORDER'}, remapping={'nextOrder':'nextOrder'})
+   
+        concurrent_assembly = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['task', 'kittingtask', 'interrupted'], output_keys=['nextOrder'], child_termination_cb=child_term_cb_assembly, outcome_cb=out_cb_assembly)
 
-        with concurent_assembly:
+        with concurrent_assembly:
             smach.Concurrence.add('ASSEMBLY',  asm, remapping={'task':'task', 'kittingtask':'kittingtask'})
-            smach.Concurrence.add('ORDERS', CheckOrders(node), remapping={'nextOrder':'nextOrder', 'interrupted':'interrupted'})
+            smach.Concurrence.add('ORDERS', WaitOrder(node), remapping={'nextOrder':'nextOrder'})
         
-        smach.StateMachine.add('CASSEMBLY', concurent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'kittingtask':'kittingtask','nextOrder':'nextOrder', 'interrupted':'interrupted'})
+        smach.StateMachine.add('CASSEMBLY', concurrent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'kittingtask':'kittingtask','nextOrder':'nextOrder', 'interrupted':'interrupted'})
         
-        concurent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
+        #concurrent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
+        concurrent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], child_termination_cb=child_term_cb_kitting, outcome_cb=out_cb_kitting)
 
-        with concurent_kitting:
+        with concurrent_kitting:
             smach.Concurrence.add('KITTING',  ksm, remapping={'kittingtask':'kittingtask', 'faultybinposition':'faultybinposition'})
-            smach.Concurrence.add('ORDERS', CheckOrders(node), remapping={'nextOrder':'nextOrder', 'interrupted':'interrupted'})
+            smach.Concurrence.add('ORDERS', WaitOrder(node), remapping={'nextOrder':'nextOrder'})
 
-        smach.StateMachine.add('CKITTING', concurent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
+        smach.StateMachine.add('CKITTING', concurrent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
 
-        smach.StateMachine.add('HPCHECKTASKS', CheckTasks(), transitions={'kitting':'KITTING', 'assembly':'ASSEMBLY', 'complete':'CONTINUEINTERRUPTED'}, remapping={'order':'nextOrder', 'task':'HPtask', 'kittingtask':'HPkittingtask'}) #define continue interrupted, save interrupted order
-        smach.StateMachine.add('ASSEMBLY', asm, transitions={'finished':'CONTINUEINTERRUPTED'}, remapping={'task':'HPtask', 'kittingtask':'HPkittingtask'}) 
-        smach.StateMachine.add('KITTING', ksm, transitions={'finished':'HPCHECKTASKS'}, remapping={'task':'HPkittingtask', 'faultybinposition':'faultybinposition'})    
+        smach.StateMachine.add('HPCHECKTASKS', HPCheckTasks(node), transitions={'kitting':'HKITTING', 'assembly':'HASSEMBLY', 'complete':'CONTINUEINTERRUPTED'}, remapping={'order':'nextOrder', 'HPtask':'HPtask', 'HPkittingtask':'HPkittingtask'}) #define continue interrupted, save interrupted order
+        smach.StateMachine.add('HASSEMBLY', asm, transitions={'finished':'CONTINUEINTERRUPTED', 'interrupted':'end'}, remapping={'task':'HPtask', 'kittingtask':'HPkittingtask'}) 
+        smach.StateMachine.add('HKITTING', hksm, transitions={'finished':'HPCHECKTASKS', 'interrupted':'end'}, remapping={'kittingtask':'HPkittingtask', 'faultybinposition':'faultybinposition'})    
         smach.StateMachine.add('CONTINUEINTERRUPTED', ContinueInterrupted(), transitions={'continue':'CHECKORDERS'}, remapping={'interrupted':'interrupted'}) 
 
     faultybin = Pose()
