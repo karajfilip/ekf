@@ -337,9 +337,11 @@ class RobotMover:
         print("KITTING_MOVER: Sent trajectory")
         while not self.check_kitting_position(end_pos, tolerance=0.015):
             rospy.sleep(0.2)
+            if not self.inverse_kin.is_object_attached_kitting().attached:
+                return False
         self.inverse_kin.deactivate_kitting_gripper()
         print("KITTING_MOVER: Let go")
-        return
+        return True
 
     # Gantry ima dodatnu varijablu joints, koja determinira koji dio gantry se treba pomaknuti. Za micanje samo baze koristi path_planner.py!!!
     # 0 - Cijeli gantry

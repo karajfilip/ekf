@@ -23,11 +23,16 @@ class process_management():
         #rospy.init_node('main_node', anonymous=True)
         self.order = Orders()
         self.orders = []
+        self.orders_served = 0
         self.received_order = False
         self.order_id = Orders()
         self.kitting_info = Orders()
-        self.assemlby_info = Orders()
+        self.assembly_info = Orders()
         self.order_sub = rospy.Subscriber('/ariac/orders', Orders, self.get_order)
+        self.placed = dict()
+        self.remove = list()
+        self.skip = list()
+        self.agvtrays = dict()
 
     def start_competition(self):
         """ROS service: Start competition"""
@@ -60,7 +65,7 @@ class process_management():
         self.received_order = True
         #self.order_id = msg.order_id
         #self.kitting_info = msg.kitting_shipments
-        #self.assemlby_info = msg.assembly_shipments
+        #self.assembly_info = msg.assembly_shipments
 
     def kitting_agv(self):
         return self.order.kitting_shipments[0].agv
@@ -68,7 +73,7 @@ class process_management():
     def procces_kitting_shipment(self, kitting_products):
         
         self.agv = self.order.kitting_shipments[0].agv
-        self.assemlby_station = self.order.kitting_shipments[0].assembly_station
+        self.assembly_station = self.order.kitting_shipments[0].assembly_station
 
         rospy.logerr(self.agv)
         
@@ -86,7 +91,7 @@ class process_management():
 
     def procces_assembly_shipment(self, assembly_products):
         
-        self.assemlby_station = self.order.assembly_shipments[0].station_id
+        self.assembly_station = self.order.assembly_shipments[0].station_id
 
         parts = []
 
@@ -115,13 +120,13 @@ class process_management():
 
         return parts
 
-    def submit_kitting_shipment(self, agv, assemlby_station, shipment_type):
+    def submit_kitting_shipment(self, agv, assembly_station, shipment_type):
         """ ROS Service for submit a kitting shipment."""
         rospy.wait_for_service('/ariac/' + agv + '/submit_kitting_shipment')
         submit_kitting = rospy.ServiceProxy('/ariac/' + agv + '/submit_kitting_shipment', SubmitKittingShipment)
         
         try:
-            resp = submit_kitting(assemlby_station, shipment_type)
+            resp = submit_kitting(assembly_station, shipment_type)
             rospy.loginfo("Submitting a kitting shipment.")
         except rospy.ServiceException as exc:
             rospy.logerr(str(exc))
@@ -133,7 +138,7 @@ class process_management():
 
         try:
             resp = submit_assembly()
-            rospy.loginfo("Submitting an assemlby shipment.")
+            rospy.loginfo("Submitting an assembly shipment.")
         except rospy.ServiceException as exc:
             rospy.logerr(str(exc))
 
