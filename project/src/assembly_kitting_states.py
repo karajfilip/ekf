@@ -121,6 +121,7 @@ class SubmitAssemblyShipment(smach.State):
             self.service_preempt()
             rospy.logwarn('PREEMPTED')
             return 'preempted'
+        rospy.sleep(1)
         self.node.submit_assembly_shipment(ud.task.station_id)
         return 'success'
 
@@ -452,7 +453,7 @@ class GantryGetTray(smach.State):
         while not self.rm.gantry_pickedup:
             rospy.sleep(0.2)
 
-        self.rm.move_directly_gantry([tray.pose.position.x , tray.pose.position.y, tray.pose.position.z + 0.4, 0, pi/2, pi/2])
+        self.rm.move_directly_gantry([tray.pose.position.x , tray.pose.position.y, tray.pose.position.z + 0.2, 0, pi/2, pi/2])
 
         if tray.pose.position.x < -6:
             self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
@@ -558,7 +559,11 @@ class SubmitKittingShipment(smach.State):
             self.service_preempt()
             rospy.logwarn('PREEMPTED')
             return 'preempted'
+
+        rospy.sleep(1)
         self.node.submit_kitting_shipment(ud.task.agv, ud.task.assembly_station, ud.task.shipment_type)
+
+        self.node.placed.pop(ud.task.agv, None)
         return 'success'
 
 

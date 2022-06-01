@@ -141,8 +141,7 @@ if __name__ == '__main__':
     with sm:
 
         smach.StateMachine.add('START', StartCompetition(node), transitions={'success':'CHECKORDERS'}, remapping={'interrupted':'interrupted'})
-        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'ENDCOMP', 'nextOrder':'SERVEORDER', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order'})
-        smach.StateMachine.add('SERVEORDER', ServeOrder(node), transitions={'continue':'CHECKTASKS'})
+        smach.StateMachine.add('CHECKORDERS', CheckOrders(node), transitions={'complete':'ENDCOMP', 'nextOrder':'CHECKTASKS', 'highPriorityOrder':'HPCHECKTASKS'}, remapping={'nextOrder':'order'})
         smach.StateMachine.add('CHECKTASKS', CheckTasks(node), transitions={'kitting':'CKITTING', 'assembly':'CASSEMBLY', 'complete':'CHECKORDERS'}, remapping={'order':'order', 'task':'task'})
         smach.StateMachine.add('ENDCOMP', EndCompetition(node), transitions={'ended':'end'})
 
@@ -156,8 +155,8 @@ if __name__ == '__main__':
             smach.Concurrence.add('ASSEMBLY',  asm, remapping={'task':'task', 'kittingtask':'kittingtask'})
             smach.Concurrence.add('ORDERS', WaitOrder(node), remapping={'nextOrder':'nextOrder'})
         
-        smach.StateMachine.add('CASSEMBLY', concurrent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'task':'task', 'kittingtask':'kittingtask','nextOrder':'nextOrder', 'interrupted':'interrupted'})
-        
+        smach.StateMachine.add('CASSEMBLY', concurrent_assembly, transitions={'complete':'CHECKORDERS', 'interrupted':'STOREASSEMBLYTASK'}, remapping={'task':'task', 'kittingtask':'kittingtask','nextOrder':'nextOrder', 'interrupted':'interrupted'})
+        smach.StateMachine.add('STOREASSEMBLYTASK', StoreTask(node), transitions={'stored':'HPCHECKTASKS'}, remapping={'task':'task'})
         #concurrent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], outcome_map={'interrupted':{'ORDERS':'highPriorityOrder'}, 'complete':{'KITTING':'finished'}})
         concurrent_kitting = smach.Concurrence(outcomes=['interrupted', 'complete'], default_outcome='complete', input_keys=['kittingtask', 'interrupted', 'faultybinposition'], output_keys=['nextOrder'], child_termination_cb=child_term_cb_kitting, outcome_cb=out_cb_kitting)
 
@@ -165,8 +164,8 @@ if __name__ == '__main__':
             smach.Concurrence.add('KITTING',  ksm, remapping={'kittingtask':'kittingtask', 'faultybinposition':'faultybinposition'})
             smach.Concurrence.add('ORDERS', WaitOrder(node), remapping={'nextOrder':'nextOrder'})
 
-        smach.StateMachine.add('CKITTING', concurrent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'HPCHECKTASKS'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
-
+        smach.StateMachine.add('CKITTING', concurrent_kitting, transitions={'complete':'CHECKORDERS', 'interrupted':'STOREKITTINGTASK'}, remapping={'kittigtask':'kittingtask', 'nextOrder':'nextOrder', 'interrupted':'interrupted', 'faultybinposition':'faultybinposition'})
+        smach.StateMachine.add('STOREKITTINGTASK', StoreTask(node), transitions={'stored':'HPCHECKTASKS'}, remapping={'task':'kittingtask'})
         smach.StateMachine.add('HPCHECKTASKS', HPCheckTasks(node), transitions={'kitting':'HKITTING', 'assembly':'HASSEMBLY', 'complete':'CONTINUEINTERRUPTED'}, remapping={'order':'nextOrder', 'HPtask':'HPtask', 'HPkittingtask':'HPkittingtask'}) #define continue interrupted, save interrupted order
         smach.StateMachine.add('HASSEMBLY', asm, transitions={'finished':'CONTINUEINTERRUPTED', 'interrupted':'end'}, remapping={'task':'HPtask', 'kittingtask':'HPkittingtask'}) 
         smach.StateMachine.add('HKITTING', hksm, transitions={'finished':'HPCHECKTASKS', 'interrupted':'end'}, remapping={'kittingtask':'HPkittingtask', 'faultybinposition':'faultybinposition'})    
