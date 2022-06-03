@@ -25,6 +25,7 @@ class process_management():
         self.orders = []
         self.orders_served = 0
         self.received_order = False
+        self.interrupted = None
         self.order_id = Orders()
         self.kitting_info = Orders()
         self.assembly_info = Orders()

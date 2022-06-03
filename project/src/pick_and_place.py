@@ -286,7 +286,7 @@ class RobotMover:
 
 
         end_pos = close_to_end
-        end_pos[2] = close_to_end[2] - 0.1
+        end_pos[2] = close_to_end[2] - 0.05
         p4, used_time = self.add_point_kitting(end_pos, used_time=used_time, point_time=4, prev_joints=p3.positions)
         trajectory2 = self.make_traj_kitting([p3, p4])
 
@@ -471,7 +471,7 @@ class RobotMover:
 
 
         while not self.check_gantry_position(above_end):
-            #print("trying to reach end position")
+            print("trying to reach end position")
             rospy.sleep(0.1)
         self.inverse_kin.deactivate_gantry_gripper()
         print("GANTRY_MOVER: Let go")
@@ -524,6 +524,8 @@ class RobotMover:
 
     # Funkcija za pokupljavanje sa trake pomocu kitting robota. Pozovi i on ide na predmet odredenog indexa (default 0)
     def pickup_from_track(self, pose_array_i=0):
+
+        rospy.logerr('tracking and picking')
         rospy.sleep(0.2)
         while not self.track_poses.poses:
             rospy.sleep(0.01)
