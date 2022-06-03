@@ -36,6 +36,8 @@ class CheckOrders(smach.State):
         
         rospy.logerr(self.node.orders)
         if len(self.node.orders)==0:
+            rospy.sleep(5)
+        if len(self.node.orders)==0:
             return 'complete'
         else:
             order = self.node.orders[-1]

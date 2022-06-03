@@ -11,6 +11,14 @@ import process_management
 import nist_assembly
 import smach_ros
 
+def child_term_cb_track(outcome_map):
+    if outcome_map['TRAY'] == 'done':
+        return True
+
+def out_cb_track(outcome_map):
+    if outcome_map['TRAY'] == 'done':
+        return 'trayon'
+
 # gets called when ANY child state terminates
 def child_term_cb_kitting(outcome_map):
 
@@ -81,32 +89,32 @@ if __name__ == '__main__':
     ksm = smach.StateMachine(outcomes=['finished', 'interrupted'], input_keys=['kittingtask', 'faultybinpose'])
     with ksm:
 
-        # get_gripper_tray_sm = smach.StateMachine(outcomes=['done'], input_keys=['kittingtask', 'trackindex'], output_keys=['gripper', 'traydone'])
+        get_gripper_tray_sm = smach.StateMachine(outcomes=['done', 'stop'], input_keys=['kittingtask'], output_keys=['gripper'])
 
-        # with get_gripper_tray_sm:
-        #     smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
-        #     smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY'}, remapping={'gripper':'gripper'})
-        #     smach.StateMachine.add('GETTRAY', GantryGetTray(gp, rm, sen), transitions={'trayon':'done'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        with get_gripper_tray_sm:
+            smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'stop'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
+            smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'stop'}, remapping={'gripper':'gripper'})
+            smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'done','preempted':'stop'}, remapping={'task':'kittingtask'})
                  
-        # pick_from_track = smach.StateMachine(outcomes=['finish'], input_keys=['kittingtask', 'traydone'], output_keys=['trackindex'])
-        # with pick_from_track:
-        #     smach.StateMachine.add('CHECKBELT', WaitConveyorBelt(), transitions={'ontrack':'PICKFROMBELT', 'finish':'finish'}, remapping={'trackindex':'trackindex', 'traydone':'traydone'})
-        #     smach.StateMachine.add('PICKFROMBELT', PickFromConveyor(rm, act), transitions={'next':'PICKFROMBELT'}, remapping={'task':'kittingtask', 'trackindex':'trackindex'})
+        pick_from_track = smach.StateMachine(outcomes=['finish'], input_keys=['kittingtask'])
+        with pick_from_track:
+            smach.StateMachine.add('CHECKBELT', WaitConveyorBelt(), transitions={'ontrack':'PICKFROMBELT', 'preempted':'finish'})
+            smach.StateMachine.add('PICKFROMBELT', PickFromConveyor(rm, act), transitions={'next':'CHECKBELT', 'preempted':'finish'}, remapping={'task':'kittingtask'})
             
         
-        # concurrent_tray_track_sm = smach.Concurrence(outcomes=['done'], default_outcome='done', input_keys=['kittingtask', 'task', 'traydone'], output_keys=['gripper'], outcome_map={'done':{'TRAY':'done'}, 'done':{'TRAY':'done', 'TRACK':'finish'}}, child_termination_cb = sm_cb)
+        concurrent_tray_track_sm = smach.Concurrence(outcomes=['trayon'], default_outcome='trayon', input_keys=['kittingtask'], output_keys=['gripper'], child_termination_cb = child_term_cb_track, outcome_cb=out_cb_track)
 
-        # with concurrent_tray_track_sm:
-        #     smach.Concurrence.add('TRACK', pick_from_track, remapping={'task':'kittingtask', 'trackindex':'trackindex', 'traydone':'traydone'})
-        #     smach.Concurrence.add('TRAY', get_gripper_tray_sm, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'trackindex':'trackindex', 'traydone':'traydone'})
+        with concurrent_tray_track_sm:
+            smach.Concurrence.add('TRACK', pick_from_track, remapping={'task':'kittingtask'})
+            smach.Concurrence.add('TRAY', get_gripper_tray_sm, remapping={'kittingtask':'kittingtask', 'gripper':'gripper'})
 
-        smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
-        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
-        smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
-        smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'TRACKANDTRAY', 'agvnotatks':'MOVEAGVTOKS', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
+        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'TRACKANDTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
+        # smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
+        # smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
+        # smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask',})
             
-        # smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'done':'CHECKKITTINGPART'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task', 'traydone':'traydone'})
+        smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'trayon':'CHECKTOREMOVE'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task'})
         smach.StateMachine.add('CHECKTOREMOVE', CheckToRemove(node), transitions={'remove':'REMOVE', 'continue':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
         smach.StateMachine.add('REMOVE', RemovePart(node, rm, sen), transitions={'removed':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})
         smach.StateMachine.add('CHECKKITTINGPART', CheckPart(node), transitions={'noParts':'SUBMITKITTING', 'newPart':'FINDPARTINENV', 'skip':'CHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'part':'part'})
@@ -120,10 +128,10 @@ if __name__ == '__main__':
     with hksm:
 
         smach.StateMachine.add('CHECKAGV', CheckAGV(node), transitions={'agvatks':'CHECKTRAY', 'agvnotatks':'MOVEAGVTOKS', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
-        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('MOVEAGVTOKS', SendAGV(node), transitions={'agvatks':'CHECKTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
         smach.StateMachine.add('CHECKTRAY', CheckMoveableTray(act, rm), transitions={'changegripper':'GETGRIPPER', 'changetray':'GETTRAY', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'gripper':'gripper'})
         smach.StateMachine.add('GETGRIPPER', GetGripper(gp, rm), transitions={'gripperon':'GETTRAY', 'preempted':'interrupted'}, remapping={'gripper':'gripper'})
-        smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask', 'traydone':'traydone'})
+        smach.StateMachine.add('GETTRAY', GantryGetTray(node, gp, rm, sen), transitions={'trayon':'CHECKTOREMOVE', 'preempted':'interrupted'}, remapping={'task':'kittingtask'})
             
         # smach.StateMachine.add('TRACKANDTRAY', concurrent_tray_track_sm, transitions={'done':'CHECKKITTINGPART'}, remapping={'kittingtask':'kittingtask', 'gripper':'gripper', 'task':'task', 'traydone':'traydone'})
         smach.StateMachine.add('CHECKTOREMOVE', CheckToRemove(node), transitions={'remove':'REMOVE', 'continue':'HCHECKKITTINGPART', 'preempted':'interrupted'}, remapping={'positiontoremove':'positiontoremove'})

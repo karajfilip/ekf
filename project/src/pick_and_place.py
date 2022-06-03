@@ -524,6 +524,8 @@ class RobotMover:
 
     # Funkcija za pokupljavanje sa trake pomocu kitting robota. Pozovi i on ide na predmet odredenog indexa (default 0)
     def pickup_from_track(self, pose_array_i=0):
+
+        rospy.logerr('tracking and picking')
         rospy.sleep(0.2)
         while not self.track_poses.poses:
             rospy.sleep(0.01)

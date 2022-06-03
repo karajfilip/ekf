@@ -607,30 +607,27 @@ class SubmitKittingShipment(smach.State):
 
 
 class WaitConveyorBelt(smach.State):
-    def __init__(self, outcomes=['ontrack', 'finish', 'preempted'], input_keys=['traydone'], output_keys=['trackindex']):
-        smach.State.__init__(self, outcomes, input_keys=input_keys, output_keys=output_keys)
+    def __init__(self, outcomes=['ontrack', 'preempted']):
+        smach.State.__init__(self, outcomes)
         self.sub  = rospy.Subscriber('ariac/pose_on_track', PoseArray, self.cb)
         self.poselen = 0
         self.trackindex = 0
 
     def execute(self, ud):
-        if self.preempt_requested():
-            self.service_preempt()
-            rospy.logwarn('PREEMPTED')
-            return 'preempted'
-        for ud.trackindex in self.trackindex:
-            if ud.traydone:
-                return 'finish'
+        while self.trackindex > self.poselen:
+            if self.preempt_requested():
+                self.service_preempt()
+                rospy.logwarn('PREEMPTED')
+                return 'preempted'
         self.trackindex += 1
-        
         return 'ontrack'
     
     def cb(self, msg):
         self.poselen = len(msg.poses)
     
 class PickFromConveyor(smach.State):
-    def __init__(self, robotmover, actuators, outcomes=['next', 'preempted'], input_keys=['task'], output_keys=['trackindex']):
-        smach.State.__init__(self, outcomes, input_keys, output_keys)
+    def __init__(self, robotmover, actuators, outcomes=['next', 'preempted'], input_keys=['task']):
+        smach.State.__init__(self, outcomes, input_keys)
         self.rm = robotmover
         self.bin1 = [-1.9, 3.37, 1, 0, pi/2, 0]
         self.bin5 = [-1.9, -3.37, 1, 0, pi/2, 0]
@@ -648,22 +645,4 @@ class PickFromConveyor(smach.State):
             self.rm.place_kitting(self.bin5)
         self.rm.place_kitting([-0.56, 0.205, 1.4, 0, pi/2, 0])
         self.trackindex += 1
-        ud.trackindex = self.trackindex
         return 'next'
-
-class WaitKitting(smach.State):
-    def __init__(self, actuators, outcomes=['done', 'preempted'], input_keys=['trackindex']):
-        smach.State.__init__(self, outcomes, input_keys=input_keys) 
-        self.act = actuators
-        self.trackindex = 0
-    
-    def execute(self, ud):
-        if self.preempt_requested():
-            self.service_preempt()
-            rospy.logwarn('PREEMPTED')
-            return 'preempted'
-        #homepose = [-0.56, 0.205, 1.4]
-        #if (ud.trackindex > 0):
-        #    while self.act.direct_kinematics_kitting_arm != homepose:
-        #        pass
-        return 'done'
