@@ -1,0 +1,4 @@
+ <launch>
+     <node name="main_node" pkg="project" type="main_sm.py" output="screen"/>
+     <node name="sensors_node" pkg="project" type="Sensors.py" output="screen"/>
+</launch>
