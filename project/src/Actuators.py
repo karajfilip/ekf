@@ -160,6 +160,11 @@ class Actuators():
         else:
             return 0
 
+    def rotation_kitting_arm(self):
+        ee_pose = self.kitting_group.get_current_pose().pose
+        direct_kin = [ee_pose.orientation.x, ee_pose.orientation.y, ee_pose.orientation.z, ee_pose.orientation.w]
+        return direct_kin
+
     def fix_joints_kitting(self, wanted_joints, curr_joints):
         if curr_joints == None:
             curr_joints = list(self.kitting_joint_state.position)
@@ -174,6 +179,35 @@ class Actuators():
         for i in range(0, len(wanted_joints)):
             if i == 2:
                 continue
+
+            penalty_0 = self.calc_penalty(wanted_joints[i]) + abs(curr_joints[i] - wanted_joints[i])
+            penalty_plus = self.calc_penalty(wanted_joints[i] + 2 * pi) + abs(curr_joints[i] - wanted_joints[i])
+            penalty_minus = self.calc_penalty(wanted_joints[i] - 2 * pi) + abs(curr_joints[i] - wanted_joints[i])
+
+            if penalty_0 < penalty_minus and penalty_0 < penalty_plus:
+                fixed_joints.append(wanted_joints[i])
+            elif penalty_minus < penalty_0 and penalty_minus < penalty_plus:
+                fixed_joints.append(wanted_joints[i] - 2 * pi)
+            else:
+                fixed_joints.append(wanted_joints[i] + 2 * pi)
+        return fixed_joints
+
+    def fix_joints_gantry(self, wanted_joints, curr_joints):
+        if curr_joints == None:
+            curr_joints = list(self.gantry_joint_state.position)
+            #curr_joints[0] = self.gantry_joint_state.position[2]
+            #curr_joints[1] = self.gantry_joint_state.position[1]
+            #curr_joints[2] = self.gantry_joint_state.position[0]
+
+        if len(curr_joints) != 11 or len(wanted_joints) != 11:
+            print("GANTRY_MOVER: ERROR - INVALID JOINTS TO FIX!")
+            return wanted_joints
+
+        curr_joints = curr_joints[0:7]
+        wanted_joints = wanted_joints[3:-1]
+
+        fixed_joints = []
+        for i in range(0, len(wanted_joints)):
 
             penalty_0 = self.calc_penalty(wanted_joints[i]) + abs(curr_joints[i] - wanted_joints[i])
             penalty_plus = self.calc_penalty(wanted_joints[i] + 2 * pi) + abs(curr_joints[i] - wanted_joints[i])
@@ -206,8 +240,30 @@ class Actuators():
         qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
         qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
         qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
- 
+
         return [qx, qy, qz, qw]
+
+    def quaternion_to_euler(self, x, y, z, w):
+        """
+        Convert a quaternion into euler angles (roll, pitch, yaw)
+        roll is rotation around x in radians (counterclockwise)
+        pitch is rotation around y in radians (counterclockwise)
+        yaw is rotation around z in radians (counterclockwise)
+        """
+        t0 = +2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x * x + y * y)
+        roll_x = math.atan2(t0, t1)
+     
+        t2 = +2.0 * (w * y - z * x)
+        t2 = +1.0 if t2 > +1.0 else t2
+        t2 = -1.0 if t2 < -1.0 else t2
+        pitch_y = math.asin(t2)
+     
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y * y + z * z)
+        yaw_z = math.atan2(t3, t4)
+     
+        return roll_x, pitch_y, yaw_z # in radians
 
     # Start_joints = pocetna pozicija jointova iz koje se racuna inverzna. Ako je None, uzima se trenutna pozicija
     def inverse_kinematics_kitting_arm(self, target, start_joints = None):
@@ -231,7 +287,6 @@ class Actuators():
         #print("TargetPose: ")
         #print(targetPose)
 
-        print(start_joints)
         if start_joints is None:
             robotTemp = RobotState()
             robotTemp.joint_state.name = self.kitting_joint_state.name
@@ -286,6 +341,7 @@ class Actuators():
         targetPose.pose.orientation.y = quaternion_ang[1]
         targetPose.pose.orientation.z = quaternion_ang[2]
         targetPose.pose.orientation.w = quaternion_ang[3]
+        targetPose.header = self.gantry_joint_state.header
 
         robotTemp = RobotState()
         if start_joints is None:
@@ -314,18 +370,6 @@ class Actuators():
         
         try:
             resp = compute_ik(service_request)
-            #rospy.loginfo(resp)
         except rospy.ServiceException as exc:
             print(exc)
-        print("GANTRY_MOVER: Inverzna: " + str(list(resp.solution.joint_state.position)))
-        #print("GANTRY_MOVER: Inverzna: " + str(list(resp.solution.joint_state.name)))
         return list(resp.solution.joint_state.position)
-
-
-
-if __name__ == '__main__':
-    #rospy.init_node('ActuatorsTest')
-    try:
-        node = Actuators()
-    except Exception as e:
-        print(e)
