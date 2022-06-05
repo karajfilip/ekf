@@ -668,9 +668,9 @@ class CheckFaulty(smach.State):
 
         if ("pump" in ud.part.type and roll == 3.14):
             rospy.logwarn("Flip pump")
-            rospy.logerr(ud.partpose)
+            #rospy.logerr(ud.partpose)
 
-            self.rm.flip_part_kitting([ud.partpose.position.x, ud.partpose.position.y, ud.partpose.position.z, 0, pi/2, 0])
+            #self.rm.flip_part_kitting([ud.partpose.position.x, ud.partpose.position.y, ud.partpose.position.z, 0, pi/2, 0])
 
         return 'notfaulty'
 
