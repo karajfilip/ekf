@@ -496,23 +496,28 @@ class GantryGetTray(smach.State):
                     ymin = tray.pose.position.y
                     min_tray = tray
         tray = min_tray
-        self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z + 0.021, 0, pi/2, pi/2], joints=1, tray_pickup = 1, liftup=0)
+        self.rm.pickup_gantry([tray.pose.position.x, tray.pose.position.y, tray.pose.position.z + 0.021, 0, pi/2, 0], joints=1, tray_pickup = 1, liftup=0)
         while not self.rm.gantry_pickedup:
             rospy.sleep(0.2)
 
-        if tray.pose.position.x < -6: 
-            self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
+        if tray.pose.position.x < -6:
+            self.rm.move_directly_gantry([tray.pose.position.x , tray.pose.position.y, tray.pose.position.z + 0.4, 0, pi/2, 0], joints=1)
+            rospy.sleep(1.5)
+            self.rm.move_directly_gantry([tray.pose.position.x + 0.6 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, 0], joints=1)
         else:
-            self.rm.move_directly_gantry([tray.pose.position.x - 0.25 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, pi/2], 1)
+            self.rm.move_directly_gantry([tray.pose.position.x , tray.pose.position.y, tray.pose.position.z + 0.4, 0, pi/2, 0], joints=1)
+            rospy.sleep(1.5)
+            self.rm.move_directly_gantry([tray.pose.position.x - 0.25 , tray.pose.position.y - 0.2, tray.pose.position.z + 0.4, 0, pi/2, 0], joints=1)
 
-        rospy.sleep(1.0)
+        rospy.sleep(1.5)
         self.gp.move(ud.task.agv)
         while self.gp.checking_position:
             rospy.sleep(0.2)
 
+        rospy.sleep(0.4)
         agv_pose = self.sen.tf_transform(str("kit_tray_"+str((ud.task.agv)[-1])))
 
-        self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, pi/2], 1, 0)
+        self.rm.place_gantry([agv_pose.position.x, agv_pose.position.y, agv_pose.position.z, 0, pi/2, 0], 1, 0)
         rospy.sleep(0.1)
         if ud.task.agv == "agv1" or ud.task.agv == "agv2":
             self.rm.move_directly_gantry([agv_pose.position.x, agv_pose.position.y + 0.25, agv_pose.position.z + 0.4, 0, pi/2, 0], 1)
@@ -619,7 +624,7 @@ class FaultyPickAndPlace(smach.State):
         diff_y = ud.partpose.orientation.y - ud.partcurrentpose.orientation.y
         diff_z = ud.partpose.orientation.z - ud.partcurrentpose.orientation.z
         partcurrentpos = [ud.partcurrentpose.position.x, ud.partcurrentpose.position.y, ud.partcurrentpose.position.z, 0, pi/2, 0] 
-        partpos = [ud.partpose.position.x, ud.partpose.position.y, ud.partpose.position.z + 0.02, 0+diff_x, pi/2, 0+diff_z]  
+        partpos = [ud.partpose.position.x, ud.partpose.position.y, ud.partpose.position.z + 0.02, 0, pi/2, 0]
         self.rm.pickup_kitting(partcurrentpos)
         while not self.rm.kitting_pickedup: 
             rospy.sleep(0.2) 
@@ -718,6 +723,10 @@ class PickFromConveyor(smach.State):
             self.service_preempt()
             rospy.logwarn('PREEMPTED')
             return 'preempted'
+
+        if len(self.rm.track_poses.poses) == 0:
+            return 'next'
+
         self.rm.pickup_from_track(self.trackindex)
         if (ud.task.agv == 'agv1' or ud.task.agv == 'agv2'):
             self.rm.place_kitting(self.bin1)

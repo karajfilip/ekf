@@ -19,6 +19,7 @@ class Sensors_functions:
     def __init__(self):
         self.bb1 = False
         self.bb2 = False
+        self.objects = list()
 
         rospy.Subscriber('/ariac/breakbeam_1_change', Proximity, self.break_beam_callback_1)
         rospy.Subscriber('/ariac/breakbeam_2_change', Proximity, self.break_beam_callback_2)
@@ -78,7 +79,7 @@ class Sensors_functions:
         try:
             print(rospy.wait_for_message("/ariac/breakbeam_0", Proximity, 1))
         except:
-            return objects
+            return self.objects
 
         # wait for all cameras to be broadcasting
         all_topics = rospy.get_published_topics()
@@ -92,7 +93,7 @@ class Sensors_functions:
         all_frames = yaml.safe_load(tf_buffer.all_frames_as_yaml()).keys()
         part_frames = [f for f in all_frames if re.match(camera_frame_format, f)]
 
-        objects = []
+        self.objects = []
         for frame in part_frames:
             try:
                 world_tf = tf_buffer.lookup_transform(
@@ -116,8 +117,8 @@ class Sensors_functions:
             model.type = re.match(camera_frame_format, frame).group(1)
             model.pose.position = world_tf.transform.translation
             model.pose.orientation = world_tf.transform.rotation
-            objects.append(model)
-        return objects
+            self.objects.append(model)
+        return self.objects
 
     def break_beam_callback_1(self, msg):
         ''' For human obstacle at as 2 '''
@@ -137,7 +138,7 @@ class Sensors_subscribers:
 
     def __init__(self):
 
-        rospy.init_node('sensors_subscribers', anonymous=True)
+        rospy.wait_for_message('/ariac/logical_camera_8', LogicalCameraImage)
         # Data from sensors
         # self.data = {}
         self.breakbeam_detection = {}
@@ -271,8 +272,9 @@ class Sensors_subscribers:
 
 
 
-#if __name__ == '__main__':
-    #subscribers = Sensors_subscribers()
+if __name__ == '__main__':
+    rospy.init_node('sensors_subscribers', anonymous=True)
+    subscribers = Sensors_subscribers()
     #functions = Sensors_functions()
     #objects = functions.get_object_pose_in_workcell()
     #  faulty = functions.tf_transform("logical_camera_2_assembly_pump_red_1_frame")

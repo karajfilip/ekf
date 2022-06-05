@@ -280,7 +280,7 @@ class RobotMover:
         current_pos.append(position[5])
         
         above_end = position
-        above_end[2] = above_end[2] + 0.2
+        above_end[2] = above_end[2] + 0.25
 
         p1, used_time = self.add_point_kitting(current_pos, used_time, point_time=0.7, prev_joints=None)
         #if (current_pos[1] >= -0.3 and position[1] <= 0.3) or (current_pos[1] <= 0.3 and position[1] >= -0.3):
@@ -309,7 +309,7 @@ class RobotMover:
         self.inverse_kin.activate_kitting_gripper()
 
         close_to_end = above_end
-        close_to_end[2] = close_to_end[2] - 0.1
+        close_to_end[2] = close_to_end[2] - 0.15
         p3, used_time = self.add_point_kitting(close_to_end, used_time=used_time, point_time=1, prev_joints=None)
 
 
