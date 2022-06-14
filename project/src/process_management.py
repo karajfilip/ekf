@@ -5,7 +5,8 @@ import yaml
 import math
 
 from std_srvs.srv import Trigger
-from nist_gear.srv import AGVControl,  ConveyorBeltControl, AssemblyStationSubmitShipment, SubmitKittingShipment, MoveToStation
+#from nist_gear.srv import AGVControl,  ConveyorBeltControl, AssemblyStationSubmitShipment, SubmitKittingShipment, MoveToStation
+from nist_gear.srv import *
 
 from geometry_msgs.msg import TransformStamped
 from nist_gear.msg import Orders, Model

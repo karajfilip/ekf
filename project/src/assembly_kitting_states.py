@@ -539,8 +539,8 @@ class FindPartInEnvironment(smach.State):
             rospy.logwarn('PREEMPTED')
             return 'preempted'
         
-        objects = self.sen.get_object_pose_in_workcell(2)
-        objects.extend(self.sen.get_object_pose_in_workcell(3))
+        objects = self.sen.get_object_pose_in_workcell() #TODO
+        #objects.extend(self.sen.get_object_pose_in_workcell(3))
         
 
         pose_tray = self.sen.tf_transform(str("kit_tray_" + str((ud.task.agv)[-1])))    
@@ -617,7 +617,7 @@ class FaultyPickAndPlace(smach.State):
             self.service_preempt()
             rospy.logwarn('PREEMPTED')
             return 'preempted'
-        if self.rm.inverse_kin.robot_health.kitting_robot_health != 'active':
+        if self.rm.inverse_kin.robot_health.kitting_robot_health != 'active': # TODO
             return 'broken'
 
         diff_x = ud.partpose.orientation.x - ud.partcurrentpose.orientation.x
@@ -699,7 +699,7 @@ class WaitConveyorBelt(smach.State):
         self.trackindex = 0
 
     def execute(self, ud):
-        while self.trackindex > self.poselen:
+        while self.trackindex >= self.poselen:
             if self.preempt_requested():
                 self.service_preempt()
                 rospy.logwarn('PREEMPTED')
