@@ -7,13 +7,15 @@ import sys
 from math import pi
 
 from sensor_msgs.msg import JointState
-from nist_gear.msg import RobotHealth, VacuumGripperState, ConveyorBeltState
+#from nist_gear.msg import RobotHealth, VacuumGripperState, ConveyorBeltState
+from nist_gear.msg import *
 from trajectory_msgs.msg import JointTrajectory
 from control_msgs.msg import JointTrajectoryControllerState
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, PoseStamped
 
-from nist_gear.srv import VacuumGripperControl, ChangeGripper
+#from nist_gear.srv import VacuumGripperControl, ChangeGripper
+from nist_gear.srv import *
 
 import moveit_commander as mc
 import moveit_msgs.msg

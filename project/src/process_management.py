@@ -9,7 +9,8 @@ from std_srvs.srv import Trigger
 from nist_gear.srv import *
 
 from geometry_msgs.msg import TransformStamped
-from nist_gear.msg import Orders, Model
+#from nist_gear.msg import Orders, Model
+from nist_gear.msg import *
 from rosgraph_msgs.msg import Clock
 from std_msgs.msg import String
 

@@ -8,7 +8,8 @@ import yaml
 import re
 
 # Break Beam Sensor, Quality Control Sensor and Logical Camera messages
-from nist_gear.msg import Proximity, LogicalCameraImage, Model
+#from nist_gear.msg import Proximity, LogicalCameraImage, Model
+from nist_gear.msg import *
 
 from geometry_msgs.msg import Pose, PoseArray
 from std_msgs.msg import Header

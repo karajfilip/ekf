@@ -2,7 +2,8 @@ import rospy
 import smach
 from geometry_msgs.msg import Pose, PoseArray
 from math import pi
-from nist_gear.msg import LogicalCameraImage
+#from nist_gear.msg import LogicalCameraImage
+from nist_gear.msg import *
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 

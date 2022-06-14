@@ -8,7 +8,8 @@ from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 from control_msgs.msg import JointTrajectoryControllerState
 from Actuators import Actuators
-from nist_gear.msg import VacuumGripperState
+#from nist_gear.msg import VacuumGripperState
+from nist_gear.msg import *
 from geometry_msgs.msg import Pose, PoseArray
 import copy
 
